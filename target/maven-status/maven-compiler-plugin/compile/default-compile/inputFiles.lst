@@ -1,1 +1,4 @@
 /home/leozalves/workspace/marketcontrol/src/main/java/marketcontrol/Program.java
+/home/leozalves/workspace/marketcontrol/src/main/java/marketcontrol/domain/model/Product.java
+/home/leozalves/workspace/marketcontrol/src/main/java/marketcontrol/dtos/ProductDTO.java
+/home/leozalves/workspace/marketcontrol/src/main/java/marketcontrol/service/ProductService.java

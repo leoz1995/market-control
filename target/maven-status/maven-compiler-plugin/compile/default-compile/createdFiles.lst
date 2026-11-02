@@ -1,1 +1,4 @@
+marketcontrol/dtos/ProductDTO.class
 marketcontrol/Program.class
+marketcontrol/domain/model/Product.class
+marketcontrol/service/ProductService.class
