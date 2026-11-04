@@ -2,40 +2,47 @@ package marketcontrol;
 
 import java.util.UUID;
 
-import marketcontrol.domain.model.ReadOnlyProduct;
+import marketcontrol.domain.model.Category;
+import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
+import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 import marketcontrol.dtos.ProductDTO;
+import marketcontrol.service.CategoryService;
 import marketcontrol.service.ProductService;
 
 public class Program {
 
-	private static final ProductService productService = new ProductService();
-	
 	public static void main(String[] args) {
 		savedProduct();
 	}
 	
 	private static void savedProduct() {
-		try {
-			ReadOnlyProduct saved = productService.saveProduct("Iphone 17", "A1264897S302027", "Pro Max Edittion", true);
-			ReadOnlyProduct saved1 = productService.saveProduct("Iphone 18", "A1264897S332027", "Pro Max Edittion", true);
-			ReadOnlyProduct saved2 = productService.saveProduct("Iphone 14", "A1264897S342027", "Pro Max Edittion", true);
-			ReadOnlyProduct saved3 = productService.saveProduct("Iphone 13", "A1264897S352027", "Pro Max Edittion", true);
-			ReadOnlyProduct saved4 = productService.saveProduct("Iphone 12", "A1264897S362027", "Pro Max Edittion", true);
-			ReadOnlyProduct saved5 = productService.saveProduct("Iphone 11", "A1264897S372027", "Pro Max Edittion", true);
-			ReadOnlyProduct saved6 = productService.saveProduct("Iphone 15", "A1264897S382027", "", true);
-			ReadOnlyProduct saved7 = productService.saveProduct("Iphone 7", "AA1111111111111", "Pro Max Edittion", true);
-			
-			productService.getProducts().forEach(System.out::println);
-			//UUID search = UUID.randomUUID();
-			UUID search2 = saved7.getId();
+		CategoryService categoryService = new CategoryService();
+		ProductService productService = new ProductService(categoryService);
+	
+		ReadOnlyCategory celulares = categoryService.saveCategory("Celulares", "Eletrônicos", true);
+		ReadOnlyCategory computadores = categoryService.saveCategory("Computadores", "Black Friday", true);
+		ReadOnlyCategory notebooks = categoryService.saveCategory("HP", "Black Friday", true);
 
-			ProductDTO newProduct = new ProductDTO("Xiaomi 10", "AA1111111111111", "New Generation 5.0", false);
+		ReadOnlyProduct saved7 = productService.saveProduct("Iphone 7", "AA1111111111111", "Pro Max Edittion", true, celulares.getId());
+	
+		productService.getProducts().forEach(System.out::println);
+		//UUID search = UUID.randomUUID();
+		UUID search2 = saved7.getId();
+		ProductDTO dto2 = productService.searchBarCode("AA1111111111111");
+		System.out.println("Encontrado: "+dto2.toString());
+		ProductDTO newProduct = new ProductDTO("Xiaomi 10", "AA1111111111111", "New Generation 5.0", false, celulares.getId());
+
+		try 
+		{
+			categoryService.editCategory(celulares.getId(), "Celulares", "Black Fridday", true);
 			ReadOnlyProduct editted = productService.editProduct(search2, newProduct);
 
 			productService.getProducts().forEach(System.out::println);
 
 			ProductDTO dto = productService.searchBarCode("AA1111111111111");
 			System.out.println("Encontrado: "+dto.toString());
+			System.out.println(categoryService.findById(saved7.getCategory().getId()));
+			System.out.println(categoryService.getCategories());
 		}
 		catch (IllegalArgumentException exception) {
 			System.out.println("Não foi possível cadastrar: "+exception.getMessage());

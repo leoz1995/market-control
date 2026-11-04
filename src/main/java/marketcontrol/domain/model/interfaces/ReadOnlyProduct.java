@@ -1,4 +1,4 @@
-package marketcontrol.domain.model;
+package marketcontrol.domain.model.interfaces;
 
 import java.util.UUID;
 
@@ -8,4 +8,5 @@ public interface ReadOnlyProduct {
 	String getBarCode();
 	String getDescription();
 	boolean isActive();
+	ReadOnlyCategory getCategory();
 }

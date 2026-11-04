@@ -1,6 +1,10 @@
 package marketcontrol.domain.model;
 
+import java.util.Locale;
 import java.util.UUID;
+
+import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
+import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 
 public class Product implements ReadOnlyProduct{
 	//**Atributos: {id, name, barcode, description, category, minimumStock, unitOfMeasure, active}**
@@ -9,16 +13,24 @@ public class Product implements ReadOnlyProduct{
 	private String barCode;
 	private String description;
 	private boolean active;
+	private Category category;
 	
-	private Product(String name, String barCode, String description, boolean active) {
+	private Product(String name, String barCode, String description, boolean active, Category category) {
 		this.id = UUID.randomUUID();
 		this.name = name;
-		this.barCode = barCode;
+		this.barCode = barCode.trim().toUpperCase(Locale.ROOT);
 		this.description = description;
 		this.active = active;
+		this.category = category;
 	}
 
-	public static Product create(String name, String barCode, String description, boolean active) {
+	public static Product create(String name, String barCode, String description, boolean active, Category category) {
+		if(category == null)
+			throw new IllegalArgumentException("A categoria é obrigatória.");
+		
+		if(!category.isActive())
+			throw new IllegalArgumentException("A categoria precisa ser ativa.");
+		
 		if(name == null)
 			throw new IllegalArgumentException("O nome é obrigatório");
 
@@ -29,28 +41,44 @@ public class Product implements ReadOnlyProduct{
 		if(barCode == null)
 			throw new IllegalArgumentException("O código de barras não pode ser nullo.");
 		
-		String cleanBarCode = barCode.trim();
-		if(cleanBarCode.isBlank())
+		String cleanBarCode = barCode;
+		if(cleanBarCode.trim().isBlank())
 			throw new IllegalArgumentException("O código de barras é obrigatório.");
 		
 		String cleanDescription = (description == null || description.isBlank()) ? null : description.trim();
 
-		return new Product(cleanName, cleanBarCode, cleanDescription, active);
+		return new Product(cleanName, cleanBarCode, cleanDescription, active, category);
 	}
 	
-	public void edit(String name, String barCode, String description, boolean active) {		
+	public void edit(String name, String barCode, String description, boolean active, Category category) {
+		
 		if(name == null || name.isBlank())
 			throw new IllegalArgumentException("O nome não pode ser nullo.");
+	
+		Category currentCategory = this.category;
+		
+		if(currentCategory == null || category == null)
+			throw new IllegalArgumentException("Categoria indisponível.");
+		
+		boolean sameCategory = currentCategory.getId()
+		    .equals(category.getId());
+		
+		if (!sameCategory && !category.isActive()) {
+		    throw new IllegalArgumentException(
+		        "A nova categoria precisa estar ativa."
+		    );
+		}
 		
 		if(barCode == null || barCode.isBlank())
 			throw new IllegalArgumentException("O código de barras é obrigatório.");
-		
+
 		String cleanDescription = (description == null || description.isBlank()) ? null : description.trim();
-		
+
 		this.name = name.trim();
-		this.barCode = barCode.trim();
+		this.barCode = barCode.trim().toUpperCase(Locale.ROOT);
 		this.description = cleanDescription;
 		this.active = active;
+		this.category = category;
 	}
 	
 	public UUID getId() {
@@ -73,9 +101,13 @@ public class Product implements ReadOnlyProduct{
 		return active;
 	}
 
+	public ReadOnlyCategory getCategory() {
+		return category;
+	}
+
 	@Override
 	public String toString() {
 		return "Product: [ID: "+id+" | " + name + ", barCode=" + barCode + ", description=" + description + ", active=" + active
-				+ "]";
+				+ " | "+getCategory()+" ]";
 	}
 }

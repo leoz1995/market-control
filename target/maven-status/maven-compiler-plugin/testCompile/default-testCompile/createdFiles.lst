@@ -1,1 +1,3 @@
-marketcontrol/JUnitConfigurationTest.class
+marketcontrol/service/CategoryServiceTest.class
+marketcontrol/domain/model/ProductTest.class
+marketcontrol/service/ProductServiceTest.class

@@ -1,4 +1,8 @@
+marketcontrol/domain/model/interfaces/ReadOnlyCategory.class
+marketcontrol/domain/model/Product.class
+marketcontrol/domain/model/Category.class
+marketcontrol/domain/model/interfaces/ReadOnlyProduct.class
 marketcontrol/dtos/ProductDTO.class
 marketcontrol/Program.class
-marketcontrol/domain/model/Product.class
+marketcontrol/service/CategoryService.class
 marketcontrol/service/ProductService.class
