@@ -16,14 +16,12 @@ import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.service.CategoryService;
 
 class ProductTest {
-	private CategoryService categoryService;
-	private final ReadOnlyCategory cat = categoryService.saveCategory("Feijão", "Enlatados", true);
-	private final Category category = categoryService.findById(cat.getId());
+	private CategoryService categoryService = new CategoryService();
+	private ReadOnlyCategory cat = categoryService.saveCategory("Feijão", "Enlatados", true);
+	Category category = categoryService.findById(cat.getId());
 	
     @Test
     void shouldCreateProductWithValidData() {
-
-    	
         Product product = Product.create(
             "Iphone 17",
             "A1264897S302027",

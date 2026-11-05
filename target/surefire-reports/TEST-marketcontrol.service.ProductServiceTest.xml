@@ -7,12 +7,13 @@
     <property name="java.vm.vendor" value="Eclipse Adoptium"/>
     <property name="sun.arch.data.model" value="64"/>
     <property name="java.vendor.url" value="https://adoptium.net/"/>
+    <property name="user.timezone" value="America/Sao_Paulo"/>
     <property name="os.name" value="Linux"/>
     <property name="java.vm.specification.version" value="25"/>
     <property name="sun.java.launcher" value="SUN_STANDARD"/>
     <property name="user.country" value="BR"/>
     <property name="sun.boot.library.path" value="/home/leozalves/.sdkman/candidates/java/25-tem/lib"/>
-    <property name="sun.java.command" value="/home/leozalves/workspace/marketcontrol/target/surefire/surefirebooter-20261103212451028_3.jar /home/leozalves/workspace/marketcontrol/target/surefire 2026-11-03T21-24-50_944-jvmRun1 surefire-20261103212451028_1tmp surefire_0-20261103212451028_2tmp"/>
+    <property name="sun.java.command" value="/home/leozalves/workspace/marketcontrol/target/surefire/surefirebooter-20261104231912377_3.jar /home/leozalves/workspace/marketcontrol/target/surefire 2026-11-04T23-19-12_281-jvmRun1 surefire-20261104231912377_1tmp surefire_0-20261104231912377_2tmp"/>
     <property name="jdk.debug" value="release"/>
     <property name="surefire.test.class.path" value="/home/leozalves/workspace/marketcontrol/target/test-classes:/home/leozalves/workspace/marketcontrol/target/classes:/home/leozalves/.m2/repository/org/junit/jupiter/junit-jupiter/5.11.4/junit-jupiter-5.11.4.jar:/home/leozalves/.m2/repository/org/junit/jupiter/junit-jupiter-api/5.11.4/junit-jupiter-api-5.11.4.jar:/home/leozalves/.m2/repository/org/opentest4j/opentest4j/1.3.0/opentest4j-1.3.0.jar:/home/leozalves/.m2/repository/org/junit/platform/junit-platform-commons/1.11.4/junit-platform-commons-1.11.4.jar:/home/leozalves/.m2/repository/org/apiguardian/apiguardian-api/1.1.2/apiguardian-api-1.1.2.jar:/home/leozalves/.m2/repository/org/junit/jupiter/junit-jupiter-params/5.11.4/junit-jupiter-params-5.11.4.jar:/home/leozalves/.m2/repository/org/junit/jupiter/junit-jupiter-engine/5.11.4/junit-jupiter-engine-5.11.4.jar:/home/leozalves/.m2/repository/org/junit/platform/junit-platform-engine/1.11.4/junit-platform-engine-1.11.4.jar:"/>
     <property name="sun.cpu.endian" value="little"/>
@@ -27,7 +28,7 @@
     <property name="line.separator" value="&#10;"/>
     <property name="java.specification.name" value="Java Platform API Specification"/>
     <property name="java.vm.specification.vendor" value="Oracle Corporation"/>
-    <property name="surefire.real.class.path" value="/home/leozalves/workspace/marketcontrol/target/surefire/surefirebooter-20261103212451028_3.jar"/>
+    <property name="surefire.real.class.path" value="/home/leozalves/workspace/marketcontrol/target/surefire/surefirebooter-20261104231912377_3.jar"/>
     <property name="sun.management.compiler" value="HotSpot 64-Bit Tiered Compilers"/>
     <property name="java.runtime.version" value="25+36-LTS"/>
     <property name="user.name" value="leozalves"/>
@@ -56,15 +57,15 @@
     <property name="java.class.version" value="69.0"/>
   </properties>
   <testcase name="shouldRejectEditingUnknownProduct" classname="marketcontrol.service.ProductServiceTest" time="0.004"/>
-  <testcase name="shouldReturnImmutableProductList" classname="marketcontrol.service.ProductServiceTest" time="0.002"/>
+  <testcase name="shouldReturnImmutableProductList" classname="marketcontrol.service.ProductServiceTest" time="0.003"/>
   <testcase name="shouldRejectEditingWithNullDTO" classname="marketcontrol.service.ProductServiceTest" time="0.002"/>
   <testcase name="shouldRejectEditingWithDuplicateBarcodeWithSpaces" classname="marketcontrol.service.ProductServiceTest" time="0.002"/>
   <testcase name="shouldRejectSearchWithBlankBarcode" classname="marketcontrol.service.ProductServiceTest" time="0.002"/>
   <testcase name="shouldPreserveInsertionOrder" classname="marketcontrol.service.ProductServiceTest" time="0.002"/>
   <testcase name="shouldSearchProductByBarcode" classname="marketcontrol.service.ProductServiceTest" time="0.002"/>
-  <testcase name="shouldRejectEditingWithNullBarcode" classname="marketcontrol.service.ProductServiceTest" time="0.001"/>
+  <testcase name="shouldRejectEditingWithNullBarcode" classname="marketcontrol.service.ProductServiceTest" time="0.002"/>
   <testcase name="shouldRejectSearchWithUnknownBarcode" classname="marketcontrol.service.ProductServiceTest" time="0.002"/>
-  <testcase name="shouldRejectDuplicateBarcode" classname="marketcontrol.service.ProductServiceTest" time="0.001"/>
+  <testcase name="shouldRejectDuplicateBarcode" classname="marketcontrol.service.ProductServiceTest" time="0.002"/>
   <testcase name="shouldReturnEmptyListWhenThereAreNoProducts" classname="marketcontrol.service.ProductServiceTest" time="0.001"/>
   <testcase name="shouldKeepSameBarcodeWhenEditing" classname="marketcontrol.service.ProductServiceTest" time="0.002"/>
   <testcase name="shouldSaveProduct" classname="marketcontrol.service.ProductServiceTest" time="0.001"/>
@@ -74,9 +75,9 @@
   <testcase name="shouldRejectEditingWithInvalidName" classname="marketcontrol.service.ProductServiceTest" time="0.002"/>
   <testcase name="shouldRejectEditingWithBarcodeAlreadyUsedByAnotherProduct" classname="marketcontrol.service.ProductServiceTest" time="0.002"/>
   <testcase name="shouldReturnAllProducts" classname="marketcontrol.service.ProductServiceTest" time="0.002"/>
-  <testcase name="shouldRejectDuplicateBarcodeWithSpaces" classname="marketcontrol.service.ProductServiceTest" time="0.002"/>
+  <testcase name="shouldRejectDuplicateBarcodeWithSpaces" classname="marketcontrol.service.ProductServiceTest" time="0.001"/>
   <testcase name="shouldRejectEditingWithBlankBarcode" classname="marketcontrol.service.ProductServiceTest" time="0.001"/>
   <testcase name="shouldEditProduct" classname="marketcontrol.service.ProductServiceTest" time="0.001"/>
-  <testcase name="shouldRejectSearchWithNullBarcode" classname="marketcontrol.service.ProductServiceTest" time="0.002"/>
+  <testcase name="shouldRejectSearchWithNullBarcode" classname="marketcontrol.service.ProductServiceTest" time="0.001"/>
   <testcase name="shouldSearchBarcodeWithSpaces" classname="marketcontrol.service.ProductServiceTest" time="0.001"/>
 </testsuite>

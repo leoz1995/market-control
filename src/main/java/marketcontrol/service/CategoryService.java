@@ -53,8 +53,8 @@ public class CategoryService {
 		return category;
 	}
 	
-	public List<Category> getCategories(){
+	public List<ReadOnlyCategory> getCategories(){
 		//return Collections.unmodifiableMap(categories);
-		return categories.values().stream().toList();
+		return List.copyOf(categories.values().stream().toList());
 	}
 }

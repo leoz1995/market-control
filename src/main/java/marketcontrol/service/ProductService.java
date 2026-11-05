@@ -36,13 +36,13 @@ public class ProductService {
 	}
 	
 	public ReadOnlyProduct editProduct(UUID uuid, ProductDTO dto) {
+		if(dto == null)
+			throw new IllegalArgumentException("Produto não foi identificado.");
+
 		Product product = products.get(uuid);
 		
 		if(product == null)
 			throw new IllegalArgumentException("Produto com UUID informado não foi encontrado.");
-		
-		if(dto == null)
-			throw new IllegalArgumentException("Produto não foi identificado.");
 		
 		if(dto.barCode() == null)
 			throw new IllegalArgumentException("Código de barra é nullo.");
@@ -86,6 +86,16 @@ public class ProductService {
 			barCodeIndex.put(newBarCode, uuid);
 		}
 	}
+	
+	public Product searchById(UUID productId) {
+		Product product = products.get(productId);
+		
+		if(product == null)
+			throw new IllegalArgumentException("O produto buscado não existe.");
+		
+		return product;
+	}
+	
 	public List<ReadOnlyProduct> getProducts(){
 		return List.copyOf(products.values());
 	}

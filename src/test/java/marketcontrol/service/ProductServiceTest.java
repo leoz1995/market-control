@@ -14,20 +14,24 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import marketcontrol.domain.model.Category;
 import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 import marketcontrol.dtos.ProductDTO;
 
 class ProductServiceTest {
-
-    private ProductService service;
-    private CategoryService categoryService;
-	private Category category;
+	private ProductService service;
+	private CategoryService categoryService;
+	private ReadOnlyCategory category;
 
     @BeforeEach
     void setUp() {
+        categoryService = new CategoryService();
+
         service = new ProductService(categoryService);
+
+        category = categoryService.saveCategory(
+            "Feijão", "Alimentação", true
+        );
     }
     
     private ReadOnlyProduct createProduct(
@@ -36,9 +40,7 @@ class ProductServiceTest {
         String description,
         boolean active
     ) {
-    	CategoryService categoryService = new CategoryService();
-    	ReadOnlyCategory cat = categoryService.saveCategory("Feijão", "Alimentação", true);
-        return service.saveProduct(name, barcode, description, active, cat.getId());
+        return service.saveProduct(name, barcode, description, active, category.getId());
     }
 
     @Test

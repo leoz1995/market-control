@@ -1,7 +1,9 @@
 /home/leozalves/workspace/marketcontrol/src/main/java/marketcontrol/Program.java
 /home/leozalves/workspace/marketcontrol/src/main/java/marketcontrol/domain/model/Category.java
+/home/leozalves/workspace/marketcontrol/src/main/java/marketcontrol/domain/model/Lot.java
 /home/leozalves/workspace/marketcontrol/src/main/java/marketcontrol/domain/model/Product.java
 /home/leozalves/workspace/marketcontrol/src/main/java/marketcontrol/domain/model/interfaces/ReadOnlyCategory.java
+/home/leozalves/workspace/marketcontrol/src/main/java/marketcontrol/domain/model/interfaces/ReadOnlyLot.java
 /home/leozalves/workspace/marketcontrol/src/main/java/marketcontrol/domain/model/interfaces/ReadOnlyProduct.java
 /home/leozalves/workspace/marketcontrol/src/main/java/marketcontrol/dtos/ProductDTO.java
 /home/leozalves/workspace/marketcontrol/src/main/java/marketcontrol/service/CategoryService.java

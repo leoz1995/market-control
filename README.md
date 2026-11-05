@@ -8,10 +8,10 @@ Controlar produtos, fornecedores, lotes e movimentações de estoque, identifica
 
 ## Funcionalidades
 
-- [ ] Cadastro de produtos
-- [ ] Cadastro de categorias
+- [~] Cadastro de produtos
+- [~] Cadastro de categorias
 - [ ] Cadastro de fornecedores
-- [ ] Controle de lotes e validades
+- [~] Controle de lotes e validades
 - [ ] Registro de entradas e saídas
 - [ ] Controle de perdas
 - [ ] Alertas de vencimento
