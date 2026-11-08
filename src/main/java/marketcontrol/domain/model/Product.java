@@ -7,7 +7,6 @@ import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 
 public class Product implements ReadOnlyProduct{
-	//**Atributos: {id, name, barcode, description, category, minimumStock, unitOfMeasure, active}**
 	private final UUID id;
 	private String name;
 	private String barCode;
@@ -52,9 +51,13 @@ public class Product implements ReadOnlyProduct{
 	
 	public void edit(String name, String barCode, String description, boolean active, Category category) {
 		
-		if(name == null || name.isBlank())
+		if(name == null)
 			throw new IllegalArgumentException("O nome não pode ser nullo.");
-	
+
+		String cleanName = name.trim();
+		if(cleanName.isBlank())
+			throw new IllegalArgumentException("O nome não pode ser nullo.");
+
 		Category currentCategory = this.category;
 		
 		if(currentCategory == null || category == null)

@@ -55,6 +55,6 @@ public class CategoryService {
 	
 	public List<ReadOnlyCategory> getCategories(){
 		//return Collections.unmodifiableMap(categories);
-		return List.copyOf(categories.values().stream().toList());
+		return List.copyOf(categories.values());
 	}
 }

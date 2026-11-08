@@ -11,4 +11,5 @@ public interface ReadOnlyLot {
 	LocalDate getExpirationDate();
 	BigDecimal getInitialQuantity();
 	BigDecimal getAvailableQuantity();
+	String toString();
 }

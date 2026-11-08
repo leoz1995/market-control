@@ -15,7 +15,7 @@ import marketcontrol.domain.model.interfaces.ReadOnlyLot;
 public class LotService {
 	
 	private final ProductService productService;
-	private final Map<UUID, ReadOnlyLot> lots = new LinkedHashMap<>();
+	private final Map<UUID, Lot> lots = new LinkedHashMap<>();
 	
 	public LotService(ProductService productService) {		
 		this.productService = productService;
@@ -30,7 +30,7 @@ public class LotService {
 		if(!product.isActive())
 			throw new IllegalArgumentException("O produto está atualmente inativo.");
 		
-		ReadOnlyLot lot = Lot.create(product, entryDate, expirationDate, initialQuantity);
+		Lot lot = Lot.create(product, entryDate, expirationDate, initialQuantity);
 		lots.put(lot.getId(), lot);
 		
 		return lot;	
@@ -51,8 +51,10 @@ public class LotService {
 	public List<ReadOnlyLot> findByProductId(UUID productId){
 		if(productId == null)
 			throw new IllegalArgumentException("Id da busca não existe.");
+		
+		List<Lot> all = lots.values().stream().filter(lot -> lot.getProduct().getId().equals(productId)).toList();
 
-		return lots.values().stream().filter(lot -> lot.getProduct().getId().equals(productId)).toList();
+		return List.copyOf(all);
 	}
 	
 	public BigDecimal getTotalAvailableQuantity(UUID productId) {
@@ -63,6 +65,7 @@ public class LotService {
 				.filter(lot -> lot.getProduct().getId().equals(productId))
 				.map(ReadOnlyLot::getAvailableQuantity)
 				.reduce(BigDecimal.ZERO, BigDecimal::add);
+		
 		return total;
 	}
 	

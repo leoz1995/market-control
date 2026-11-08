@@ -26,16 +26,20 @@ public class ProductService {
 	public ReadOnlyProduct saveProduct(String name, String barCode, String description, boolean active, UUID categoryId) {
 		Category category = categoryService.findById(categoryId);
 		Product product = Product.create(name, barCode, description, active, category);
-				
-		barCodeCheck(product.getBarCode().trim().toUpperCase(Locale.ROOT) ,product.getId());
+		
+		String normalizedBarCode = normalizeBarCode(product.getBarCode());
+		barCodeCheck(normalizedBarCode, product.getId());
 		
 		products.put(product.getId(), product);
-		barCodeIndex.put(product.getBarCode().trim().toUpperCase(Locale.ROOT), product.getId());
+		barCodeIndex.put(normalizedBarCode, product.getId());
 		
 		return product;
 	}
 	
 	public ReadOnlyProduct editProduct(UUID uuid, ProductDTO dto) {
+		if(uuid == null)
+			throw new IllegalArgumentException("ID inválido.");
+		
 		if(dto == null)
 			throw new IllegalArgumentException("Produto não foi identificado.");
 
@@ -48,17 +52,13 @@ public class ProductService {
 			throw new IllegalArgumentException("Código de barra é nullo.");
 		
 		String oldBarCode = product.getBarCode();
-		String newBarCode = dto.barCode().toUpperCase(Locale.ROOT).trim();
 
-		if(newBarCode.isBlank())
-			throw new IllegalArgumentException("Código de barras inválido.");
-
-		barCodeCheck(newBarCode, uuid);
+		barCodeCheck(normalizeBarCode(dto.barCode()), uuid);
 
 		Category currentCategory = categoryService.findById(dto.categoryId());
 	
-		product.edit(dto.name(), newBarCode, dto.description(), dto.active(), currentCategory);
-		barCodeApply(newBarCode, oldBarCode, uuid);
+		product.edit(dto.name(), normalizeBarCode(dto.barCode()), dto.description(), dto.active(), currentCategory);
+		barCodeApply(normalizeBarCode(dto.barCode()), oldBarCode, uuid);
 		
 		return product;
 	}
@@ -74,6 +74,12 @@ public class ProductService {
 				.orElseThrow(() -> new IllegalArgumentException("Esse código de barras não existe."));
 	}
 	
+	public ReadOnlyProduct searchProduct(String barCode) {		
+		UUID p = barCodeIndex.get(barCode.toUpperCase(Locale.ROOT).trim());
+		ReadOnlyProduct product = products.get(p);
+		return Optional.ofNullable(product).orElseThrow(() -> new IllegalArgumentException("Código de barras inválido."));
+	}
+	
 	private void barCodeCheck(String newBarCode, UUID uuid) {
 		UUID existingId = barCodeIndex.get(newBarCode);
 		if (existingId != null && !existingId.equals(uuid))
@@ -87,13 +93,20 @@ public class ProductService {
 		}
 	}
 	
-	public Product searchById(UUID productId) {
+	Product searchById(UUID productId) {
 		Product product = products.get(productId);
 		
 		if(product == null)
 			throw new IllegalArgumentException("O produto buscado não existe.");
 		
 		return product;
+	}
+	
+	private String normalizeBarCode(String barCode) {
+		if(barCode == null || barCode.isBlank())
+			throw new IllegalArgumentException("Código de barras inválido.");
+		
+		return barCode.trim().toUpperCase(Locale.ROOT);
 	}
 	
 	public List<ReadOnlyProduct> getProducts(){

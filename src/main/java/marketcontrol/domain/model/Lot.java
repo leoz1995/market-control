@@ -92,4 +92,10 @@ public class Lot implements ReadOnlyLot{
 		return id;
 	}
 
+	@Override
+	public String toString() {
+		return "Lot [id=" + id + ", product=" + product + ", entryDate=" + entryDate + ", expirationDate="
+				+ expirationDate + ", initialQuantity=" + initialQuantity + ", availableQuantity=" + availableQuantity
+				+ "]";
+	}
 }
