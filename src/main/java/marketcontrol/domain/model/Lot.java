@@ -45,6 +45,9 @@ public class Lot implements ReadOnlyLot{
 		if(expirationDate.isBefore(entryDate))
 			throw new IllegalArgumentException("A data de validade deve ser posterior ou igual a data de entrada.");
 		
+		if(!entryDate.isEqual(LocalDate.now()))
+			throw new IllegalArgumentException("A data de entrada não pode ser no futuro/passado.");
+			
 		return new Lot(product, entryDate, expirationDate, initialQuantity, initialQuantity);
 	}
 	
@@ -52,15 +55,15 @@ public class Lot implements ReadOnlyLot{
 		if(quantity == null)
 			throw new IllegalArgumentException("A quantidade consumida é inválida.");
 		
+		if(isExpired())
+			throw new IllegalArgumentException("O lote atual é vencido.");
+
 		if(quantity.compareTo(BigDecimal.ZERO) <= 0)
 			throw new IllegalArgumentException("A quantidade solicitada é zero ou negativa.");
 		
 		if(quantity.compareTo(availableQuantity) > 0)
 			throw new IllegalArgumentException("A quantidade em estoque é menor que a venda.");
 
-		if(isExpired())
-			throw new IllegalArgumentException("O lote atual é vencido.");
-		
 		availableQuantity = availableQuantity.subtract(quantity);
 	}
 	
@@ -94,7 +97,7 @@ public class Lot implements ReadOnlyLot{
 
 	@Override
 	public String toString() {
-		return "Lot [id=" + id + ", product=" + product + ", entryDate=" + entryDate + ", expirationDate="
+		return "Lot [id=" + id + ", product=" + product.getName() + ", entryDate=" + entryDate + ", expirationDate="
 				+ expirationDate + ", initialQuantity=" + initialQuantity + ", availableQuantity=" + availableQuantity
 				+ "]";
 	}

@@ -1,12 +1,10 @@
 package marketcontrol.domain.model;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.UUID;
 
@@ -26,7 +24,7 @@ class ProductTest {
             "Iphone 17",
             "A1264897S302027",
             "Pro Max Edition",
-            true, category
+            category
         );
 
         assertNotNull(product);
@@ -34,13 +32,12 @@ class ProductTest {
         assertEquals("Iphone 17", product.getName());
         assertEquals("A1264897S302027", product.getBarCode());
         assertEquals("Pro Max Edition", product.getDescription());
-        assertTrue(product.isActive());
     }
 
     @Test
     void shouldGenerateUniqueIds() {
-        Product first = Product.create("Iphone 17", "111", null, true, category);
-        Product second = Product.create("Iphone 18", "222", null, true, category);
+        Product first = Product.create("Iphone 17", "111", null, category);
+        Product second = Product.create("Iphone 18", "222", null, category);
 
         assertNotEquals(first.getId(), second.getId());
     }
@@ -48,19 +45,19 @@ class ProductTest {
     @Test
     void shouldRejectProductWithNullName() {
         assertThrows(IllegalArgumentException.class,
-            () -> Product.create(null, "111", null, true, category));
+            () -> Product.create(null, "111", null, category));
     }
 
     @Test
     void shouldRejectProductWithBlankName() {
         assertThrows(IllegalArgumentException.class,
-            () -> Product.create("   ", "111", null, true, category));
+            () -> Product.create("   ", "111", null, category));
     }
 
     @Test
     void shouldNormalizeProductName() {
         Product product = Product.create(
-            "  Iphone 17  ", "111", null, true, category
+            "  Iphone 17  ", "111", null, category
         );
 
         assertEquals("Iphone 17", product.getName());
@@ -69,19 +66,19 @@ class ProductTest {
     @Test
     void shouldRejectProductWithNullBarcode() {
         assertThrows(IllegalArgumentException.class,
-            () -> Product.create("Iphone 17", null, null, true, category));
+            () -> Product.create("Iphone 17", null, null, category));
     }
 
     @Test
     void shouldRejectProductWithBlankBarcode() {
         assertThrows(IllegalArgumentException.class,
-            () -> Product.create("Iphone 17", "   ", null, true, category));
+            () -> Product.create("Iphone 17", "   ", null, category));
     }
 
     @Test
     void shouldNormalizeBarcode() {
         Product product = Product.create(
-            "Iphone 17", "  111222333  ", null, true, category
+            "Iphone 17", "  111222333  ", null, category
         );
 
         assertEquals("111222333", product.getBarCode());
@@ -89,14 +86,14 @@ class ProductTest {
 
     @Test
     void shouldAllowNullDescription() {
-        Product product = Product.create("Iphone 17", "111", null, true, category);
+        Product product = Product.create("Iphone 17", "111", null, category);
 
         assertNull(product.getDescription());
     }
 
     @Test
     void shouldConvertBlankDescriptionToNull() {
-        Product product = Product.create("Iphone 17", "111", "   ", true, category);
+        Product product = Product.create("Iphone 17", "111", "   ", category);
 
         assertNull(product.getDescription());
     }
@@ -104,46 +101,38 @@ class ProductTest {
     @Test
     void shouldNormalizeDescription() {
         Product product = Product.create(
-            "Iphone 17", "111", "  Pro Max  ", true, category
+            "Iphone 17", "111", "  Pro Max  ", category
         );
 
         assertEquals("Pro Max", product.getDescription());
     }
-
-    @Test
-    void shouldAllowInactiveProduct() {
-        Product product = Product.create("Iphone 17", "111", null, false, category);
-
-        assertFalse(product.isActive());
-    }
-
+    
     @Test
     void shouldEditProductWithValidData() {
-        Product product = Product.create("Iphone 17", "111", "Pro", true, category);
+        Product product = Product.create("Iphone 17", "111", "Pro", category);
 
-        product.edit("Xiaomi 10", "222", "New Generation", false, category);
+        product.edit("Xiaomi 10", "222", "New Generation", category);
 
         assertEquals("Xiaomi 10", product.getName());
         assertEquals("222", product.getBarCode());
         assertEquals("New Generation", product.getDescription());
-        assertFalse(product.isActive());
     }
 
     @Test
     void shouldPreserveIdAfterEditing() {
-        Product product = Product.create("Iphone 17", "111", null, true, category);
+        Product product = Product.create("Iphone 17", "111", null, category);
         UUID originalId = product.getId();
 
-        product.edit("Xiaomi 10", "222", null, false, category);
+        product.edit("Xiaomi 10", "222", null, category);
 
         assertEquals(originalId, product.getId());
     }
 
     @Test
     void shouldNormalizeDataWhenEditing() {
-        Product product = Product.create("Iphone 17", "111", null, true, category);
+        Product product = Product.create("Iphone 17", "111", null, category);
 
-        product.edit("  Xiaomi 10  ", "  222  ", "  New  ", true, category);
+        product.edit("  Xiaomi 10  ", "  222  ", "  New  ", category);
 
         assertEquals("Xiaomi 10", product.getName());
         assertEquals("222", product.getBarCode());
@@ -152,46 +141,45 @@ class ProductTest {
 
     @Test
     void shouldRejectEditWithNullName() {
-        Product product = Product.create("Iphone 17", "111", null, true, category);
+        Product product = Product.create("Iphone 17", "111", null, category);
 
         assertThrows(IllegalArgumentException.class,
-            () -> product.edit(null, "222", null, true, category));
+            () -> product.edit(null, "222", null, category));
     }
 
     @Test
     void shouldRejectEditWithBlankName() {
-        Product product = Product.create("Iphone 17", "111", null, true, category);
+        Product product = Product.create("Iphone 17", "111", null, category);
 
         assertThrows(IllegalArgumentException.class,
-            () -> product.edit("   ", "222", null, true, category));
+            () -> product.edit("   ", "222", null, category));
     }
 
     @Test
     void shouldRejectEditWithNullBarcode() {
-        Product product = Product.create("Iphone 17", "111", null, true, category);
+        Product product = Product.create("Iphone 17", "111", null, category);
 
         assertThrows(IllegalArgumentException.class,
-            () -> product.edit("Xiaomi 10", null, null, true, category));
+            () -> product.edit("Xiaomi 10", null, null, category));
     }
 
     @Test
     void shouldRejectEditWithBlankBarcode() {
-        Product product = Product.create("Iphone 17", "111", null, true, category);
+        Product product = Product.create("Iphone 17", "111", null, category);
 
         assertThrows(IllegalArgumentException.class,
-            () -> product.edit("Xiaomi 10", "   ", null, true, category));
+            () -> product.edit("Xiaomi 10", "   ", null, category));
     }
 
     @Test
     void shouldPreserveDataWhenEditFails() {
-        Product product = Product.create("Iphone 17", "111", "Pro", true, category);
+        Product product = Product.create("Iphone 17", "111", "Pro", category);
 
         assertThrows(IllegalArgumentException.class,
-            () -> product.edit("   ", "222", "New", false, category));
+            () -> product.edit("   ", "222", "New", category));
 
         assertEquals("Iphone 17", product.getName());
         assertEquals("111", product.getBarCode());
         assertEquals("Pro", product.getDescription());
-        assertTrue(product.isActive());
     }
 }

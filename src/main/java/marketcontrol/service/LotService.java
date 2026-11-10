@@ -5,7 +5,6 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 import marketcontrol.domain.model.Lot;
@@ -18,6 +17,9 @@ public class LotService {
 	private final Map<UUID, Lot> lots = new LinkedHashMap<>();
 	
 	public LotService(ProductService productService) {		
+		if(productService == null)
+			throw new IllegalArgumentException("Serviço de Produto não Instanciado.");
+		
 		this.productService = productService;
 	}
 
@@ -27,50 +29,40 @@ public class LotService {
 		
 		Product product = productService.searchById(productId);
 		
-		if(!product.isActive())
-			throw new IllegalArgumentException("O produto está atualmente inativo.");
-		
 		Lot lot = Lot.create(product, entryDate, expirationDate, initialQuantity);
 		lots.put(lot.getId(), lot);
 		
 		return lot;	
 	}
 
-	public Optional<ReadOnlyLot> findById(UUID id){
+	public ReadOnlyLot findById(UUID id){
 		if(id == null)
 			throw new IllegalArgumentException("Lot ID inexistente.");
 		
-		ReadOnlyLot search = lots.get(id);
+		ReadOnlyLot foundLot = lots.values().stream().filter(lot -> lot.getId().equals(id))
+				.map(lot -> (ReadOnlyLot) lot).findFirst().orElseThrow(()-> new IllegalArgumentException("Lote não encontrado."));
 		
-		if(search == null)
-			return Optional.empty();
-				
-		return Optional.of(search);
+		return foundLot;
 	}
 	
 	public List<ReadOnlyLot> findByProductId(UUID productId){
 		if(productId == null)
-			throw new IllegalArgumentException("Id da busca não existe.");
+			throw new IllegalArgumentException("Id do produto inválido.");
 		
-		List<Lot> all = lots.values().stream().filter(lot -> lot.getProduct().getId().equals(productId)).toList();
-
-		return List.copyOf(all);
+		productService.searchById(productId);
+		
+		return lots.values().stream().filter(lot -> lot.getProduct().getId().equals(productId)).map(lot -> (ReadOnlyLot) lot).toList();
 	}
 	
 	public BigDecimal getTotalAvailableQuantity(UUID productId) {
 		if(productId == null)
 			throw new IllegalArgumentException("Insira um ID válido.");
 		
-		BigDecimal total = lots.values().stream()
+		productService.searchById(productId);
+		
+		return lots.values().stream()
 				.filter(lot -> lot.getProduct().getId().equals(productId))
 				.map(ReadOnlyLot::getAvailableQuantity)
 				.reduce(BigDecimal.ZERO, BigDecimal::add);
-		
-		return total;
 	}
-	
-	public List<ReadOnlyLot> getLots(){
-		return List.copyOf(lots.values());
-	}
-	
 }

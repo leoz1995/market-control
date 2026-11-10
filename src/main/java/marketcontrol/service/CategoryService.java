@@ -44,17 +44,19 @@ public class CategoryService {
 		return category;
 	}
 	
-	public Category findById(UUID id) {
+	Category findById(UUID id) {
+		if(id == null)
+			throw new IllegalArgumentException("ID da categoria inválido.");
+		
 		Category category = categories.get(id);	
 		
 		if(category == null)
-			throw new IllegalArgumentException("A categoria não encontrada.");
+			throw new IllegalArgumentException("Categoria não encontrada.");
 		
 		return category;
 	}
 	
 	public List<ReadOnlyCategory> getCategories(){
-		//return Collections.unmodifiableMap(categories);
 		return List.copyOf(categories.values());
 	}
 }

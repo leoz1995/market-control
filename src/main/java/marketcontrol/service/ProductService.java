@@ -20,12 +20,16 @@ public class ProductService {
 	private final CategoryService categoryService;
 	
 	public ProductService(CategoryService categoryService) {
+		
+		if(categoryService == null)
+			throw new IllegalArgumentException("Serviço de categoria não instanciado corretamente.");
+		
 		this.categoryService = categoryService;
 	}
 	
-	public ReadOnlyProduct saveProduct(String name, String barCode, String description, boolean active, UUID categoryId) {
+	public ReadOnlyProduct saveProduct(String name, String barCode, String description, UUID categoryId) {
 		Category category = categoryService.findById(categoryId);
-		Product product = Product.create(name, barCode, description, active, category);
+		Product product = Product.create(name, barCode, description, category);
 		
 		String normalizedBarCode = normalizeBarCode(product.getBarCode());
 		barCodeCheck(normalizedBarCode, product.getId());
@@ -52,30 +56,32 @@ public class ProductService {
 			throw new IllegalArgumentException("Código de barra é nullo.");
 		
 		String oldBarCode = product.getBarCode();
-
-		barCodeCheck(normalizeBarCode(dto.barCode()), uuid);
+		String normalizedBarCode = normalizeBarCode(dto.barCode());
+		
+		barCodeCheck(normalizedBarCode, uuid);
 
 		Category currentCategory = categoryService.findById(dto.categoryId());
 	
-		product.edit(dto.name(), normalizeBarCode(dto.barCode()), dto.description(), dto.active(), currentCategory);
-		barCodeApply(normalizeBarCode(dto.barCode()), oldBarCode, uuid);
+		product.edit(dto.name(), normalizedBarCode, dto.description(), currentCategory);
+		barCodeApply(normalizedBarCode, oldBarCode, uuid);
 		
 		return product;
 	}
 	
 	public ProductDTO searchBarCode(String barCode) 
 	{
-		if(barCode == null || barCode.isBlank())
-			throw new IllegalArgumentException("O código de barras é obrigatório.");
+		String normalizedBarCode = normalizeBarCode(barCode);
 		
-		return Optional.ofNullable(barCodeIndex.get(barCode.toUpperCase(Locale.ROOT).trim()))
+		return Optional.ofNullable(barCodeIndex.get(normalizedBarCode))
 				.map(products::get)
-				.map(product -> new ProductDTO(product.getName(), product.getBarCode(), product.getDescription(), product.isActive(), product.getCategory().getId()))
+				.map(product -> new ProductDTO(product.getName(), product.getBarCode(), product.getDescription(), product.getCategory().getId()))
 				.orElseThrow(() -> new IllegalArgumentException("Esse código de barras não existe."));
 	}
 	
-	public ReadOnlyProduct searchProduct(String barCode) {		
-		UUID p = barCodeIndex.get(barCode.toUpperCase(Locale.ROOT).trim());
+	public ReadOnlyProduct searchProduct(String barCode) {
+		String normalizedBarCode = normalizeBarCode(barCode);
+		
+		UUID p = barCodeIndex.get(normalizedBarCode);
 		ReadOnlyProduct product = products.get(p);
 		return Optional.ofNullable(product).orElseThrow(() -> new IllegalArgumentException("Código de barras inválido."));
 	}

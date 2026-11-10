@@ -11,19 +11,17 @@ public class Product implements ReadOnlyProduct{
 	private String name;
 	private String barCode;
 	private String description;
-	private boolean active;
 	private Category category;
 	
-	private Product(String name, String barCode, String description, boolean active, Category category) {
+	private Product(String name, String barCode, String description, Category category) {
 		this.id = UUID.randomUUID();
 		this.name = name;
 		this.barCode = barCode.trim().toUpperCase(Locale.ROOT);
 		this.description = description;
-		this.active = active;
 		this.category = category;
 	}
 
-	public static Product create(String name, String barCode, String description, boolean active, Category category) {
+	public static Product create(String name, String barCode, String description, Category category) {
 		if(category == null)
 			throw new IllegalArgumentException("A categoria é obrigatória.");
 		
@@ -40,16 +38,15 @@ public class Product implements ReadOnlyProduct{
 		if(barCode == null)
 			throw new IllegalArgumentException("O código de barras não pode ser nullo.");
 		
-		String cleanBarCode = barCode;
-		if(cleanBarCode.trim().isBlank())
+		if(barCode.trim().isBlank())
 			throw new IllegalArgumentException("O código de barras é obrigatório.");
 		
 		String cleanDescription = (description == null || description.isBlank()) ? null : description.trim();
 
-		return new Product(cleanName, cleanBarCode, cleanDescription, active, category);
+		return new Product(cleanName, barCode, cleanDescription, category);
 	}
 	
-	public void edit(String name, String barCode, String description, boolean active, Category category) {
+	public void edit(String name, String barCode, String description, Category category) {
 		
 		if(name == null)
 			throw new IllegalArgumentException("O nome não pode ser nullo.");
@@ -80,7 +77,6 @@ public class Product implements ReadOnlyProduct{
 		this.name = name.trim();
 		this.barCode = barCode.trim().toUpperCase(Locale.ROOT);
 		this.description = cleanDescription;
-		this.active = active;
 		this.category = category;
 	}
 	
@@ -100,17 +96,12 @@ public class Product implements ReadOnlyProduct{
 		return description;
 	}
 
-	public boolean isActive() {
-		return active;
-	}
-
 	public ReadOnlyCategory getCategory() {
 		return category;
 	}
 
 	@Override
 	public String toString() {
-		return "Product: [ID: "+id+" | " + name + ", barCode=" + barCode + ", description=" + description + ", active=" + active
-				+ " | "+getCategory()+" ]";
+		return "Product: [ID: "+id+" | " + name + ", barCode=" + barCode + ", description=" + description + " | "+getCategory()+" ]";
 	}
 }

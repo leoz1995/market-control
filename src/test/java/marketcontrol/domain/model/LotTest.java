@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 
 public class LotTest {
 	final Category cat = Category.create("Grãos", "Melhores grãos", true);
-	final Product p = Product.create("Feijão", "12345678900A", "Enlatados", true, cat);
+	final Product p = Product.create("Feijão", "12345678900A", "Enlatados", cat);
 	
 	@Test
 	void shouldCreateLotWithValidData() {

@@ -3,6 +3,8 @@ package marketcontrol;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.List;
 import java.util.Scanner;
 import java.util.UUID;
@@ -22,8 +24,7 @@ public class Program {
 	private static final LotService lotService = new LotService(productService);
 
 	public static void main(String[] args) {
-		try {
-			Scanner sc = new Scanner(System.in);
+		try (Scanner sc = new Scanner(System.in)){
 			String option;
 			System.out.println("MARKET CONTROLLER - BY LEONARDO ALVES");
 
@@ -40,39 +41,43 @@ public class Program {
 
 				option = sc.nextLine().trim();
 
-				switch (option) {
-				case "1":
-					addProduct(sc);
-					break;
-				case "2":
-					productList();
-					break;
-				case "3":
-					System.out.println("Digite o código do produto: ");
-					String barCode = sc.nextLine().toUpperCase();
-					System.out.println(searchBarCode(barCode));
-					break;
-				case "4":
-					productEdit(sc);
-					break;
-				case "5":
-					addCategory(sc);
-					break;
-				case "6":
-					addLot(sc);
-					break;
-				case "7":
-					consultLotAndStock(sc);
-					break;
-				default:
-					System.out.println("Opção inválida!");
+				try {
+					switch (option) {
+					case "1":
+						addProduct(sc);
+						break;
+					case "2":
+						productList();
+						break;
+					case "3":
+						System.out.println("Digite o código do produto: ");
+						String barCode = sc.nextLine().toUpperCase();
+						System.out.println(searchBarCode(barCode));
+						break;
+					case "4":
+						productEdit(sc);
+						break;
+					case "5":
+						addCategory(sc);
+						break;
+					case "6":
+						addLot(sc);
+						break;
+					case "7":
+						consultLotAndStock(sc);
+						break;
+					case "8":
+						System.out.println("Encerrando o MarketControl...");
+						break;
+					default:
+						System.out.println("Opção inválida!");
 
+					}
+				}
+				catch (IllegalArgumentException | IllegalStateException e){
+					System.out.println("Não foi possível concluir a operação: "+e.getMessage());
 				}
 			} while (!option.equals("8"));
-			sc.close();
-		} 
-		catch (Exception e) {
-			System.out.println(e.getMessage());
 		}
 	}
 
@@ -86,13 +91,11 @@ public class Program {
 		System.out.println("Digite a descrição do produto: ");
 		String desc = sc.nextLine();
 
-		System.out.println(categoryService.getCategories());
-		System.out.println("Digite o ID da categoria do produto: ");
-		String categoryId = sc.nextLine();
-		UUID catId = null;
-		catId = UUID.fromString(categoryId);
+		categoryService.getCategories().forEach(System.out::println);
+
+		UUID catId = readCategoryId(sc);
 		
-		ReadOnlyProduct save = productService.saveProduct(name, code, desc, true, catId);
+		ReadOnlyProduct save = productService.saveProduct(name, code, desc, catId);
 
 		System.out.println("Produtos cadastrados: ");
 		System.out.println(save.getName());
@@ -100,12 +103,7 @@ public class Program {
 
 	private static void productList() {
 		List<ReadOnlyProduct> saved = productService.getProducts();
-		saved.forEach(p -> System.out.println(p));
-	}
-	
-	private static void lotList() {
-		List<ReadOnlyLot> saved = lotService.getLots();
-		saved.forEach(p -> System.out.println(p));
+		saved.forEach(System.out::println);
 	}
 	
 	private static ProductDTO searchBarCode(String barCode) {
@@ -119,7 +117,6 @@ public class Program {
 		String productId = sc.nextLine();
 		
 		ReadOnlyProduct p = productService.searchProduct(productId);
-		//IdDoProduto
 		
 		System.out.println("Digite o nome do produto: ");
 		String n = sc.nextLine();
@@ -130,19 +127,10 @@ public class Program {
 		System.out.println("Digite a descrição: ");
 		String desc = sc.nextLine();
 		
-		System.out.println("O produto ficará ativo? S/N");
-		String active = sc.nextLine().trim();
+		categoryService.getCategories().forEach(System.out::println);
+		UUID id = readCategoryId(sc);
 		
-		boolean isActive = active.toUpperCase().startsWith("S") ? true : false;
-		
-		categoryService.getCategories();
-		System.out.println("Qual o ID da categoria?");
-		UUID id = null;
-		String categoryId = sc.nextLine();
-		
-		id = UUID.fromString(categoryId);
-		
-		ProductDTO updated = new ProductDTO(n, bc, desc, isActive, id);
+		ProductDTO updated = new ProductDTO(n, bc, desc, id);
 		productService.editProduct(p.getId(), updated);
 		System.out.println("-------- ATUALIZADO --------");
 		System.out.println(p);
@@ -160,26 +148,17 @@ public class Program {
 		System.out.println("Nova categoria salva: ");
 		System.out.println(save.getName());
 	}
-
+	
 	private static void addLot(Scanner sc) {
-		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-		UUID id = null;
+		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT);	
 		productList();
-		System.out.println("Digite o ID do produto: ");
-		String identification = sc.nextLine();
-		id = UUID.fromString(identification);
-
-		System.out.println("Digite a DATA de entrada (dd/MM/yyyy): ");
-		String entrada = sc.nextLine().trim();
-		LocalDate dataEntry = LocalDate.parse(entrada, formatter);
-
-		System.out.println("Digite a DATA de validade (dd/MM/yyyy): ");
-		String entrada2 = sc.nextLine().trim();
-		LocalDate dataExpires = LocalDate.parse(entrada2, formatter);
-
-		System.out.println("Quantidade recebida: ");
-		String quantity = sc.nextLine();
-		BigDecimal total = new BigDecimal(quantity);
+		
+		UUID id = readProductId(sc);
+		
+		LocalDate dataEntry = readEntryDate(sc, "Digite a DATA de entrada (dd/MM/uuuu): ", formatter);
+		
+		LocalDate dataExpires = readExpiresDate(sc, "Digite a DATA de validade (dd/MM/uuuu): ", formatter, dataEntry);
+		BigDecimal total = readPositiveQuantity(sc);
 
 		ReadOnlyLot save = lotService.save(id, dataEntry, dataExpires, total);
 
@@ -187,23 +166,185 @@ public class Program {
 		System.out.println(save.getId() + " | " + save.getEntryDate() + " | " + save.getExpirationDate() + " | "
 				+ save.getInitialQuantity());
 	}
-	
+
 	private static void consultLotAndStock(Scanner sc) {
-		UUID uuid = null;
-		UUID lotUuid = null;
-		System.out.println("Digite o ID do PRODUTO que deseja ver o STOCK: ");
-		String id = sc.nextLine();
-		uuid = UUID.fromString(id);
+		UUID id = readProductId(sc);
 		
-		System.out.println(lotService.getTotalAvailableQuantity(uuid));
+		List<ReadOnlyLot> lots = lotService.findByProductId(id);
+		if(lots.isEmpty())
+		{
+			System.out.println("Este produto ainda não possui lotes cadastrados.");
+			return;
+		}
+		
+		System.out.println("Estoque disponível: "+lotService.getTotalAvailableQuantity(id));
 		
 		System.out.println("---------------------------------");
-		lotList();
-		System.out.println("Insira o ID do lote: ");
+		lots.forEach(System.out::println);
 		
-		String lotId = sc.nextLine();
-		lotUuid = UUID.fromString(lotId);
+		UUID lotId = readLotUUID(sc, "Insira o ID do lote: ", id);
 		
-		System.out.println(lotService.findById(lotUuid));
+		System.out.println(lotService.findById(lotId));
+	}
+	
+	private static UUID readLotUUID(Scanner sc, String message, UUID productId) {
+	    while (true) {
+	        System.out.println(message);
+	        String input = sc.nextLine().trim();
+
+	        UUID id;
+
+	        try {
+	            id = UUID.fromString(input);
+
+	            if (!id.toString().equalsIgnoreCase(input)) {
+	                System.out.println("UUID inválido. Digite o ID completo.");
+	                continue;
+	            }
+	        } catch (IllegalArgumentException e) {
+	            System.out.println("ID inválido. Tente novamente.");
+	            continue;
+	        }
+
+	        try {
+	            ReadOnlyLot lot = lotService.findById(id);
+
+	            if (!lot.getProduct().getId().equals(productId)) {
+	                System.out.println("O lote não pertence ao produto selecionado.");
+	                continue;
+	            }
+
+	            return id;
+
+	        } catch (IllegalArgumentException e) {
+	            System.out.println("Lote não encontrado. Tente novamente.");
+	        }
+	    }
+	}
+	
+	private static UUID readUUID(Scanner sc, String message) {
+		
+		while(true) {
+			System.out.println(message);
+			String input = sc.nextLine().trim();
+			
+			try {
+				UUID id = UUID.fromString(input);
+				
+				if(!id.toString().equalsIgnoreCase(input)) {
+					System.out.println("UUID inválido. Digite o ID completo. ");
+					continue;
+				}
+				
+				return id;
+			}
+			catch(IllegalArgumentException e)
+			{
+				System.out.println("ID inválido. Tente novamente.");
+			}
+		}
+	}
+	
+	private static UUID readProductId(Scanner sc) {
+		while(true) {
+			UUID id = readUUID(sc, "Digite o ID do produto: ");
+			ReadOnlyProduct prod = productService.getProducts().stream()
+					.filter(p -> p.getId().equals(id))
+					.findFirst()
+					.orElse(null);
+			
+			if(prod == null) {
+				System.out.println("Produto não encontrado, tente novamente..");
+				continue;
+			}
+			
+			return id;
+		}
+	}
+	
+	private static UUID readCategoryId(Scanner sc) {
+		if(categoryService.getCategories().isEmpty())
+			throw new IllegalStateException("Sem categorias cadastradas no momento.");
+		
+		while(true) {
+			UUID id = readUUID(sc, "Digite o ID da categoria: ");
+
+			ReadOnlyCategory category = categoryService.getCategories()
+					.stream()
+					.filter(c -> c.getId().equals(id))
+					.findFirst()
+					.orElse(null);
+			
+			if(category == null) {
+				System.out.println("Categoria não encontrada. Tente novamente.");
+				continue;
+			}
+			
+			if(!category.isActive()) {
+				System.out.println("Categoria inativa. Escolha uma categoria ativa. ");
+				continue;
+			}
+			
+			return id;
+		}
+	}
+	
+	private static LocalDate readDate(Scanner sc, String message, DateTimeFormatter formatter) {
+		while (true) {
+			System.out.println(message);
+			String input = sc.nextLine().trim();
+			try 
+			{
+				return LocalDate.parse(input, formatter);
+			} catch (DateTimeParseException d) {
+				System.out.println("Date inválida. Utilize o formato dd/MM/uuuu.");
+			}
+		}
+	}
+	
+	private static BigDecimal readPositiveQuantity(Scanner sc) {
+		while(true) {
+			System.out.println("Quantidade recebida: ");
+			String input = sc.nextLine().trim().replace(',', '.');
+			try {
+				BigDecimal quantity = new BigDecimal(input);
+				if(quantity.compareTo(BigDecimal.ZERO) <= 0) {
+					System.out.println("A quantidade deve ser maior que zero.");
+					continue;
+				}
+				
+				return quantity;
+			}
+			catch(NumberFormatException number) {
+				System.out.println("Quantidade inválida. Digite um número válido.");
+			}
+		}
+	}
+	
+	private static LocalDate readEntryDate(Scanner sc, String message, DateTimeFormatter formatter) {
+		LocalDate today = LocalDate.now();
+		
+		while(true) {
+			LocalDate date = readDate(sc, message, formatter);
+			
+			if(!date.equals(today)) {
+				System.out.println("A data de entrada deve ser a data de hoje.");
+				continue;
+			}
+			return date;	
+		}
+	}
+	
+	private static LocalDate readExpiresDate(Scanner sc, String string, DateTimeFormatter formatter, LocalDate entry) {
+		while(true) {
+			LocalDate dateExpires = readDate(sc, string, formatter);
+			
+			if(dateExpires.isBefore(entry)) {
+				System.out.println("A data de validade deve ser igual ou posterior à entrada.");
+				continue;
+			}
+			
+			return dateExpires;
+		}
 	}
 }

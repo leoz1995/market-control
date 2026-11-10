@@ -7,6 +7,5 @@ public interface ReadOnlyProduct {
 	String getName();
 	String getBarCode();
 	String getDescription();
-	boolean isActive();
 	ReadOnlyCategory getCategory();
 }
