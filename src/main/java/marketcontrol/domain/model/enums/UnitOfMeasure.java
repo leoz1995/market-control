@@ -1,5 +1,7 @@
 package marketcontrol.domain.model.enums;
 
+import java.util.Arrays;
+
 public enum UnitOfMeasure {
 	UNIT(1, "Unidade"), 
 	KILOGRAM(2, "Quilo"), 
@@ -13,6 +15,14 @@ public enum UnitOfMeasure {
 	UnitOfMeasure(int code, String description){
 		this.code = code;
 		this.description = description;
+	}
+	
+	public static UnitOfMeasure fromCode(int code)
+	{
+		return Arrays.stream(UnitOfMeasure.values())
+				.filter(unit -> unit.getCode() == code)
+				.findFirst()
+				.orElseThrow(() -> new IllegalArgumentException("Código inválido."));
 	}
 	
 	public int getCode() {

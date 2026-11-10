@@ -53,7 +53,7 @@ public class Program {
 					case "3":
 						System.out.println("Digite o código do produto: ");
 						String barCode = sc.nextLine().toUpperCase();
-						System.out.println(productService.searchBarCode(barCode));
+						System.out.println(productService.findByBarCode(barCode));
 						break;
 					case "4":
 						productEdit(sc);
@@ -124,16 +124,16 @@ public class Program {
 	
 	private static void productList() {
 		List<ReadOnlyProduct> saved = productService.getProducts();
+		
 		if(saved.isEmpty())
-		{
-			System.out.println("Nenhum produto cadastrado.");
-			return;
-		}
+			throw new IllegalArgumentException("Não há produtos na lista.");
+		
 		saved.forEach(System.out::println);
 	}
 
 	private static void productEdit(Scanner sc) {
 		productList();
+		
 		System.out.println("Digite o codigo de barras do produto à ser editado: ");
 		String barCode = sc.nextLine();
 		

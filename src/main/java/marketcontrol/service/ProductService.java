@@ -30,6 +30,10 @@ public class ProductService {
 	
 	public ReadOnlyProduct saveProduct(String name, String barCode, String description, UUID categoryId, UnitOfMeasure unit) {
 		Category category = categoryService.findById(categoryId);
+		
+		if(category == null)
+			throw new IllegalArgumentException("Categoria não encontrada.");
+		
 		Product product = Product.create(name, barCode, description, category, unit);
 		
 		String normalizedBarCode = normalizeBarCode(product.getBarCode());
@@ -65,28 +69,20 @@ public class ProductService {
 		barCodeCheck(normalizedBarCode, uuid);
 
 		Category currentCategory = categoryService.findById(dto.categoryId());
-	
+		
+		if(currentCategory == null)
+			throw new IllegalArgumentException("Categoria não encontrada.");
+		
 		product.edit(dto.name(), normalizedBarCode, dto.description(), currentCategory);
 		barCodeApply(normalizedBarCode, oldBarCode, uuid);
 		
 		return product;
 	}
 	
-	public ProductDTO searchBarCode(String barCode) 
-	{
-		String normalizedBarCode = normalizeBarCode(barCode);
-		
-		return Optional.ofNullable(barCodeIndex.get(normalizedBarCode))
-				.map(products::get)
-				.map(product -> new ProductDTO(product.getName(), product.getBarCode(), product.getDescription(), product.getCategory().getId(), product.getUnit()))
-				.orElseThrow(() -> new IllegalArgumentException("Esse código de barras não existe."));
-	}
-	
 	public ReadOnlyProduct findByBarCode(String barCode) {
 		String normalizedBarCode = normalizeBarCode(barCode);
 		
-		UUID p = barCodeIndex.get(normalizedBarCode);
-		ReadOnlyProduct product = products.get(p);
+		ReadOnlyProduct product = products.get(barCodeIndex.get(normalizedBarCode));
 		return Optional.ofNullable(product).orElseThrow(() -> new IllegalArgumentException("Código de barras inválido."));
 	}
 	
@@ -105,9 +101,6 @@ public class ProductService {
 	
 	Product searchById(UUID productId) {
 		Product product = products.get(productId);
-		
-		if(product == null)
-			throw new IllegalArgumentException("O produto buscado não existe.");
 		
 		return product;
 	}

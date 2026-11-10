@@ -10,6 +10,7 @@ import java.util.UUID;
 import marketcontrol.domain.model.Lot;
 import marketcontrol.domain.model.Product;
 import marketcontrol.domain.model.interfaces.ReadOnlyLot;
+import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 
 public class LotService {
 	
@@ -28,6 +29,9 @@ public class LotService {
 			throw new IllegalArgumentException("O produto não é válido.");
 		
 		Product product = productService.searchById(productId);
+		
+		if(product == null)
+			throw new IllegalArgumentException("ID do produto inválido.");
 		
 		Lot lot = Lot.create(product, entryDate, expirationDate, initialQuantity);
 		lots.put(lot.getId(), lot);
@@ -50,7 +54,9 @@ public class LotService {
 		if(productId == null)
 			throw new IllegalArgumentException("Id do produto inválido.");
 		
-		productService.searchById(productId);
+		ReadOnlyProduct p = productService.searchById(productId);
+		if(p == null)
+			throw new IllegalArgumentException("ID do produto inválido.");
 		
 		return lots.values().stream().filter(lot -> lot.getProduct().getId().equals(productId)).map(lot -> (ReadOnlyLot) lot).toList();
 	}
@@ -59,7 +65,10 @@ public class LotService {
 		if(productId == null)
 			throw new IllegalArgumentException("Insira um ID válido.");
 		
-		productService.searchById(productId);
+		ReadOnlyProduct p = productService.searchById(productId);
+		
+		if(p == null)
+			throw new IllegalArgumentException("ID do produto inválido.");
 		
 		return lots.values().stream()
 				.filter(lot -> lot.getProduct().getId().equals(productId) && !lot.isExpired())

@@ -50,9 +50,6 @@ public class CategoryService {
 		
 		Category category = categories.get(id);	
 		
-		if(category == null)
-			throw new IllegalArgumentException("Categoria não encontrada.");
-		
 		return category;
 	}
 	
