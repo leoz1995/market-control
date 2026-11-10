@@ -3,6 +3,7 @@ package marketcontrol.domain.model;
 import java.util.Locale;
 import java.util.UUID;
 
+import marketcontrol.domain.model.enums.UnitOfMeasure;
 import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 
@@ -12,16 +13,18 @@ public class Product implements ReadOnlyProduct{
 	private String barCode;
 	private String description;
 	private Category category;
+	private final UnitOfMeasure unit;
 	
-	private Product(String name, String barCode, String description, Category category) {
+	private Product(String name, String barCode, String description, Category category, UnitOfMeasure unit) {
 		this.id = UUID.randomUUID();
 		this.name = name;
 		this.barCode = barCode.trim().toUpperCase(Locale.ROOT);
 		this.description = description;
 		this.category = category;
+		this.unit = unit;
 	}
 
-	public static Product create(String name, String barCode, String description, Category category) {
+	public static Product create(String name, String barCode, String description, Category category, UnitOfMeasure unit) {
 		if(category == null)
 			throw new IllegalArgumentException("A categoria é obrigatória.");
 		
@@ -31,6 +34,9 @@ public class Product implements ReadOnlyProduct{
 		if(name == null)
 			throw new IllegalArgumentException("O nome é obrigatório");
 
+		if(unit == null)
+			throw new IllegalArgumentException("O tipo de medida é obrigatório.");
+		
 		String cleanName = name.trim();
 		if(cleanName.isBlank())
 			throw new IllegalArgumentException("O nome é obrigatório");
@@ -43,7 +49,7 @@ public class Product implements ReadOnlyProduct{
 		
 		String cleanDescription = (description == null || description.isBlank()) ? null : description.trim();
 
-		return new Product(cleanName, barCode, cleanDescription, category);
+		return new Product(cleanName, barCode, cleanDescription, category, unit);
 	}
 	
 	public void edit(String name, String barCode, String description, Category category) {
@@ -100,8 +106,12 @@ public class Product implements ReadOnlyProduct{
 		return category;
 	}
 
+	public UnitOfMeasure getUnit() {
+		return unit;
+	}
+	
 	@Override
 	public String toString() {
-		return "Product: [ID: "+id+" | " + name + ", barCode=" + barCode + ", description=" + description + " | "+getCategory()+" ]";
+		return "Product: [ID: "+id+" | " + name + ", barCode=" + barCode + ", description=" + description + " | "+getCategory()+" | "+unit+" ]";
 	}
 }

@@ -39,10 +39,11 @@ public class LotService {
 		if(id == null)
 			throw new IllegalArgumentException("Lot ID inexistente.");
 		
-		ReadOnlyLot foundLot = lots.values().stream().filter(lot -> lot.getId().equals(id))
-				.map(lot -> (ReadOnlyLot) lot).findFirst().orElseThrow(()-> new IllegalArgumentException("Lote não encontrado."));
+		Lot lot = lots.get(id);
+		if(lot == null)
+			throw new IllegalArgumentException("Lote não encontrado.");
 		
-		return foundLot;
+		return lot;
 	}
 	
 	public List<ReadOnlyLot> findByProductId(UUID productId){
@@ -61,7 +62,7 @@ public class LotService {
 		productService.searchById(productId);
 		
 		return lots.values().stream()
-				.filter(lot -> lot.getProduct().getId().equals(productId))
+				.filter(lot -> lot.getProduct().getId().equals(productId) && !lot.isExpired())
 				.map(ReadOnlyLot::getAvailableQuantity)
 				.reduce(BigDecimal.ZERO, BigDecimal::add);
 	}

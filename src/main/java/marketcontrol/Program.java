@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.UUID;
 
+import marketcontrol.domain.model.enums.UnitOfMeasure;
 import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.domain.model.interfaces.ReadOnlyLot;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
@@ -52,7 +53,7 @@ public class Program {
 					case "3":
 						System.out.println("Digite o código do produto: ");
 						String barCode = sc.nextLine().toUpperCase();
-						System.out.println(searchBarCode(barCode));
+						System.out.println(productService.searchBarCode(barCode));
 						break;
 					case "4":
 						productEdit(sc);
@@ -91,32 +92,52 @@ public class Program {
 		System.out.println("Digite a descrição do produto: ");
 		String desc = sc.nextLine();
 
+		UnitOfMeasure unitValue = readUnitOfMeasure(sc);
+		System.out.println("Unidade selecionada: " + unitValue);
+		
 		categoryService.getCategories().forEach(System.out::println);
 
 		UUID catId = readCategoryId(sc);
 		
-		ReadOnlyProduct save = productService.saveProduct(name, code, desc, catId);
+		ReadOnlyProduct save = productService.saveProduct(name, code, desc, catId, unitValue);
 
 		System.out.println("Produtos cadastrados: ");
 		System.out.println(save.getName());
 	}
 
-	private static void productList() {
-		List<ReadOnlyProduct> saved = productService.getProducts();
-		saved.forEach(System.out::println);
+	private static UnitOfMeasure readUnitOfMeasure(Scanner sc) {
+		while(true) {
+			System.out.println("Digite a Unidade do produto: ");
+			System.out.println("1. Unidade | 2. Quilo | 3. Gramas | 4. Litros | 5. Mililitros");
+			String unit = sc.nextLine().trim();
+
+			switch (unit) {
+		        case "1" -> { return UnitOfMeasure.UNIT; }
+		        case "2" -> { return UnitOfMeasure.KILOGRAM; }
+		        case "3" -> { return UnitOfMeasure.GRAM; }
+		        case "4" -> { return UnitOfMeasure.LITER; }
+		        case "5" -> { return UnitOfMeasure.MILLILITER; }
+		        default -> System.out.println("Opção inválida! Por favor digite novamente.");
+			}
+		}
 	}
 	
-	private static ProductDTO searchBarCode(String barCode) {
-		ProductDTO products = productService.searchBarCode(barCode);
-		return products;
+	private static void productList() {
+		List<ReadOnlyProduct> saved = productService.getProducts();
+		if(saved.isEmpty())
+		{
+			System.out.println("Nenhum produto cadastrado.");
+			return;
+		}
+		saved.forEach(System.out::println);
 	}
 
-	public static void productEdit(Scanner sc) {
+	private static void productEdit(Scanner sc) {
 		productList();
 		System.out.println("Digite o codigo de barras do produto à ser editado: ");
-		String productId = sc.nextLine();
+		String barCode = sc.nextLine();
 		
-		ReadOnlyProduct p = productService.searchProduct(productId);
+		ReadOnlyProduct p = productService.findByBarCode(barCode);
 		
 		System.out.println("Digite o nome do produto: ");
 		String n = sc.nextLine();
@@ -130,7 +151,9 @@ public class Program {
 		categoryService.getCategories().forEach(System.out::println);
 		UUID id = readCategoryId(sc);
 		
-		ProductDTO updated = new ProductDTO(n, bc, desc, id);
+		UnitOfMeasure currentUnit = p.getUnit();
+		
+		ProductDTO updated = new ProductDTO(n, bc, desc, id, currentUnit);
 		productService.editProduct(p.getId(), updated);
 		System.out.println("-------- ATUALIZADO --------");
 		System.out.println(p);
@@ -248,10 +271,7 @@ public class Program {
 	private static UUID readProductId(Scanner sc) {
 		while(true) {
 			UUID id = readUUID(sc, "Digite o ID do produto: ");
-			ReadOnlyProduct prod = productService.getProducts().stream()
-					.filter(p -> p.getId().equals(id))
-					.findFirst()
-					.orElse(null);
+			ReadOnlyProduct prod = productService.findById(id);
 			
 			if(prod == null) {
 				System.out.println("Produto não encontrado, tente novamente..");

@@ -10,6 +10,7 @@ import java.util.UUID;
 
 import marketcontrol.domain.model.Category;
 import marketcontrol.domain.model.Product;
+import marketcontrol.domain.model.enums.UnitOfMeasure;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 import marketcontrol.dtos.ProductDTO;
 
@@ -27,9 +28,9 @@ public class ProductService {
 		this.categoryService = categoryService;
 	}
 	
-	public ReadOnlyProduct saveProduct(String name, String barCode, String description, UUID categoryId) {
+	public ReadOnlyProduct saveProduct(String name, String barCode, String description, UUID categoryId, UnitOfMeasure unit) {
 		Category category = categoryService.findById(categoryId);
-		Product product = Product.create(name, barCode, description, category);
+		Product product = Product.create(name, barCode, description, category, unit);
 		
 		String normalizedBarCode = normalizeBarCode(product.getBarCode());
 		barCodeCheck(normalizedBarCode, product.getId());
@@ -51,6 +52,9 @@ public class ProductService {
 		
 		if(product == null)
 			throw new IllegalArgumentException("Produto com UUID informado não foi encontrado.");
+		
+		if(dto.unit() != product.getUnit())
+		    throw new IllegalArgumentException("A unidade de medida não pode ser alterada.");
 		
 		if(dto.barCode() == null)
 			throw new IllegalArgumentException("Código de barra é nullo.");
@@ -74,11 +78,11 @@ public class ProductService {
 		
 		return Optional.ofNullable(barCodeIndex.get(normalizedBarCode))
 				.map(products::get)
-				.map(product -> new ProductDTO(product.getName(), product.getBarCode(), product.getDescription(), product.getCategory().getId()))
+				.map(product -> new ProductDTO(product.getName(), product.getBarCode(), product.getDescription(), product.getCategory().getId(), product.getUnit()))
 				.orElseThrow(() -> new IllegalArgumentException("Esse código de barras não existe."));
 	}
 	
-	public ReadOnlyProduct searchProduct(String barCode) {
+	public ReadOnlyProduct findByBarCode(String barCode) {
 		String normalizedBarCode = normalizeBarCode(barCode);
 		
 		UUID p = barCodeIndex.get(normalizedBarCode);
@@ -108,6 +112,9 @@ public class ProductService {
 		return product;
 	}
 	
+	public ReadOnlyProduct findById(UUID productId) {
+		return searchById(productId);
+	}
 	private String normalizeBarCode(String barCode) {
 		if(barCode == null || barCode.isBlank())
 			throw new IllegalArgumentException("Código de barras inválido.");
