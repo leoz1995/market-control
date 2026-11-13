@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: marketcontrol.domain.model.LotTest
--------------------------------------------------------------------------------
-Tests run: 17, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.077 s -- in marketcontrol.domain.model.LotTest
