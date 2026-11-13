@@ -12,11 +12,11 @@ public class Product implements ReadOnlyProduct{
 	private String name;
 	private String barCode;
 	private String description;
-	private Category category;
+	private ReadOnlyCategory category;
 	private final UnitOfMeasure unit;
 	
-	private Product(String name, String barCode, String description, Category category, UnitOfMeasure unit) {
-		this.id = UUID.randomUUID();
+	private Product(UUID id, String name, String barCode, String description, ReadOnlyCategory category, UnitOfMeasure unit) {
+		this.id = id;
 		this.name = name;
 		this.barCode = barCode.trim().toUpperCase(Locale.ROOT);
 		this.description = description;
@@ -24,7 +24,7 @@ public class Product implements ReadOnlyProduct{
 		this.unit = unit;
 	}
 
-	public static Product create(String name, String barCode, String description, Category category, UnitOfMeasure unit) {
+	public static Product create(String name, String barCode, String description, ReadOnlyCategory category, UnitOfMeasure unit) {
 		if(category == null)
 			throw new IllegalArgumentException("A categoria é obrigatória.");
 		
@@ -49,10 +49,10 @@ public class Product implements ReadOnlyProduct{
 		
 		String cleanDescription = (description == null || description.isBlank()) ? null : description.trim();
 
-		return new Product(cleanName, barCode, cleanDescription, category, unit);
+		return new Product(UUID.randomUUID(), cleanName, barCode, cleanDescription, category, unit);
 	}
 	
-	public void edit(String name, String barCode, String description, Category category) {
+	public void edit(String name, String barCode, String description, ReadOnlyCategory category) {
 		
 		if(name == null)
 			throw new IllegalArgumentException("O nome não pode ser nullo.");
@@ -61,7 +61,7 @@ public class Product implements ReadOnlyProduct{
 		if(cleanName.isBlank())
 			throw new IllegalArgumentException("O nome não pode ser nullo.");
 
-		Category currentCategory = this.category;
+		ReadOnlyCategory currentCategory = this.category;
 		
 		if(currentCategory == null || category == null)
 			throw new IllegalArgumentException("Categoria indisponível.");
@@ -84,6 +84,29 @@ public class Product implements ReadOnlyProduct{
 		this.barCode = barCode.trim().toUpperCase(Locale.ROOT);
 		this.description = cleanDescription;
 		this.category = category;
+	}
+	
+	public static Product reconstitute(UUID id, String name, String barCode, String description, ReadOnlyCategory category, UnitOfMeasure unit) {
+		if(id == null)
+			throw new IllegalArgumentException("O ID do produto é obrigatório.");
+		
+		if(name == null || name.isBlank())
+			throw new IllegalArgumentException("O nome do produto é obrigatório.");
+		
+		if(barCode == null || barCode.isBlank())
+			throw new IllegalArgumentException("O código de barras é obrigatório.");
+		
+		if(category == null)
+			throw new IllegalArgumentException("A categoria é obrigatória.");
+		
+		if(unit == null)
+			throw new IllegalArgumentException("A unidade de medida é obrigatória.");
+		
+		String cleanName = name.trim();
+		String cleanBarCode = barCode.trim().toUpperCase(Locale.ROOT);
+		String cleanDescription = (description == null || description.isBlank()) ? null : description.trim();
+		
+		return new Product(id, cleanName, cleanBarCode, cleanDescription, category, unit);	
 	}
 	
 	public UUID getId() {

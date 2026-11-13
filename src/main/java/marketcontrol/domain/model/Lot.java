@@ -10,14 +10,14 @@ import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 public class Lot implements ReadOnlyLot{
 
 	private final UUID id;
-	private final Product product;
+	private final ReadOnlyProduct product;
 	private final LocalDate entryDate;
 	private final LocalDate expirationDate;
 	private final BigDecimal initialQuantity;
 	private BigDecimal availableQuantity;
 	
-	private Lot(Product product, LocalDate entryDate, LocalDate expirationDate, BigDecimal initialQuantity, BigDecimal availableQuantity) {
-		this.id = UUID.randomUUID();
+	private Lot(UUID id, ReadOnlyProduct product, LocalDate entryDate, LocalDate expirationDate, BigDecimal initialQuantity, BigDecimal availableQuantity) {
+		this.id = id;
 		this.product = product;
 		this.entryDate = entryDate;
 		this.expirationDate = expirationDate;
@@ -25,7 +25,7 @@ public class Lot implements ReadOnlyLot{
 		this.availableQuantity = availableQuantity;
 	}
 
-	public static Lot create(Product product, LocalDate entryDate, LocalDate expirationDate, BigDecimal initialQuantity) {
+	public static Lot create(ReadOnlyProduct product, LocalDate entryDate, LocalDate expirationDate, BigDecimal initialQuantity) {
 		
 		if(product == null)
 			throw new IllegalArgumentException("O produto não existe.");
@@ -45,10 +45,42 @@ public class Lot implements ReadOnlyLot{
 		if(expirationDate.isBefore(entryDate))
 			throw new IllegalArgumentException("A data de validade deve ser posterior ou igual a data de entrada.");
 		
-		if(!entryDate.isEqual(LocalDate.now()))
-			throw new IllegalArgumentException("A data de entrada não pode ser no futuro/passado.");
+		if(entryDate.isAfter(LocalDate.now()))
+			throw new IllegalArgumentException("A data de entrada não pode ser no futura.");
 			
-		return new Lot(product, entryDate, expirationDate, initialQuantity, initialQuantity);
+		return new Lot(UUID.randomUUID(), product, entryDate, expirationDate, initialQuantity, initialQuantity);
+	}
+	
+	public static Lot reconstitute(UUID id, ReadOnlyProduct product, LocalDate entryDate, LocalDate expirationDate, BigDecimal initialQuantity, BigDecimal availableQuantity) {
+	
+		if(id == null)
+			throw new IllegalArgumentException("O ID não pode ser null.");
+
+		if(product == null)
+			throw new IllegalArgumentException("O produto não existe.");
+		
+		if(entryDate == null)
+			throw new IllegalArgumentException("A data de entrada não pode ser null.");
+		
+		if(expirationDate == null)
+			throw new IllegalArgumentException("A data de validade não pode ser null.");
+		
+		if(expirationDate.isBefore(entryDate))
+			throw new IllegalArgumentException("A validade não pode ser antes da entrada.");
+		
+		if(availableQuantity == null)
+			throw new IllegalArgumentException("A quantidade disponível não pode ser null.");
+		
+		if(initialQuantity == null)
+			throw new IllegalArgumentException("A quantidade inicial não pode ser null.");
+		
+		if(availableQuantity.compareTo(BigDecimal.ZERO) < 0)
+		    throw new IllegalArgumentException("Estoque disponível não pode ser negativo.");
+
+		if(availableQuantity.compareTo(initialQuantity) > 0)
+		    throw new IllegalArgumentException("Estoque disponível não pode superar o estoque inicial.");
+
+		return new Lot(id, product, entryDate, expirationDate, initialQuantity, availableQuantity);
 	}
 	
 	public void consume(BigDecimal quantity) {

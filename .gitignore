@@ -1,3 +1,5 @@
-#Taget
-taget/
+# Maven
+/target/
 
+# Database credentials
+/src/main/resources/database.properties

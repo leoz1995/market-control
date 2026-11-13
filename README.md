@@ -1,57 +1,84 @@
 # Market Control
 
-Sistema de gerenciamento de estoque para estabelecimentos comerciais, desenvolvido para praticar Java puro e evoluir, por etapas, para persistência JDBC e acesso via protocolo HTTP.
+Aplicação de terminal em Java para cadastro de categorias e produtos e controle inicial de lotes e quantidades em MariaDB. O projeto organiza regras de domínio, casos de uso e persistência JDBC em camadas separadas. Está em desenvolvimento; ainda não implementa todo o escopo de movimentações e histórico descrito em [requisitos](docs/requirements.md).
 
-## Objetivo
+## Funcionalidades disponíveis
 
-Controlar produtos, categorias, fornecedores, lotes, entradas, saídas e perdas; identificar produtos vencidos, próximos do vencimento ou abaixo do estoque mínimo; preservar o histórico e a integridade do estoque.
+- Cadastrar e editar categorias, incluindo ativação/desativação.
+- Cadastrar produtos com nome, código de barras, descrição, categoria e unidade de medida.
+- Validar e normalizar nomes, descrições e códigos de barras; rejeitar código de barras duplicado.
+- Listar produtos e pesquisar por código de barras.
+- Cadastrar lotes com datas de entrada e validade e quantidades decimais.
+- Consultar lotes e quantidade disponível total de um produto.
+- Registrar saída de quantidade de um lote, impedindo saldo negativo e consumo de lote vencido.
+- Persistir categorias, produtos e lotes em MariaDB pelos repositórios JDBC.
 
-## Estado atual
+## Tecnologias
 
-Projeto em desenvolvimento. A implementação existente já contém uma aplicação de terminal, cadastro/edição de produtos e categorias, associação de produto a categoria, serviços com armazenamento em memória, índice de busca por código de barras e operações iniciais de lote com quantidade e validade. Há testes JUnit para partes do domínio e serviços.
+- Java 25
+- Maven
+- MariaDB e MariaDB Connector/J 3.5.6
+- JUnit Jupiter 5.11.4
 
-O fluxo completo de movimentações, histórico, fornecedores, usuários, persistência JDBC e API HTTP ainda está no plano de evolução. Consulte [docs/requirements.md](docs/requirements.md) para o inventário por requisito, decisões em aberto e etapas de implementação. Consulte [relatorio-aprendizado-marketcontrol.htm](relatorio-aprendizado-marketcontrol.htm) para a trilha de estudo e os critérios de progresso.
+## Organização do projeto
 
-## Decisão de domínio em avaliação: estoque mínimo e unidade
+```text
+src/main/java/marketcontrol/
+├── Program.java                         # interface de terminal
+├── domain/model/                        # Category, Product, Lot e contratos de leitura
+├── domain/repository/                   # contratos dos repositórios
+├── dtos/                                # dados de edição do produto
+├── exception/                           # exceções de persistência
+├── infrastructure/database/             # conexão JDBC
+├── infrastructure/persistence/jdbc/     # repositórios MariaDB
+└── service/                             # casos de uso
+src/test/java/                           # testes de domínio e integração JDBC
+database/                                # scripts SQL das tabelas
+```
 
-Estoque mínimo e unidade de medida são propriedades do **produto**, pois o estoque agregado do produto é a soma de seus lotes. A interação do terminal pode solicitar esses dados durante o primeiro fluxo de cadastro de lote, se isso for mais didático para o usuário; nesse caso, os valores devem ser registrados uma única vez no produto e reutilizados nos lotes seguintes. Não devem ser repetidos como política independente em cada lote. Esta decisão está marcada como proposta a validar em `docs/requirements.md`.
+Os serviços dependem das interfaces de repositório. As implementações em uso são `JdbcCategoryRepository`, `JdbcProductRepository` e `JdbcLotRepository`. A camada de domínio não abre conexões nem executa SQL.
 
-## Tecnologias e restrições desta fase
+## Requisitos para executar
 
-- Java 25 (configurado no Maven).
-- Maven.
-- JUnit Jupiter 5 (configurado no Maven).
-- Java Collections Framework para armazenamento inicial em memória.
-- Sem Spring nesta trilha. JDBC e HTTP serão estudados diretamente depois que o domínio e os casos de uso estiverem concluídos e testados.
+- JDK 25 e Maven instalados.
+- MariaDB ativo e acessível pela aplicação.
+- Banco `marketcontrol` criado, com as tabelas definidas nos scripts SQL deste repositório.
+- Arquivo de configuração JDBC no classpath.
 
-Dependências auxiliares futuras, como driver JDBC ou biblioteca de JSON, devem ser introduzidas apenas na etapa correspondente e justificadas na documentação.
+### Configurar o MariaDB
 
-## Organização conceitual
+Execute os scripts na ordem abaixo dentro do banco `marketcontrol`:
 
-- `domain.model`: entidades e regras que protegem o estado válido.
-- `domain.model.interfaces`: contratos de consulta oferecidos a consumidores.
-- `service`: coordenação dos casos de uso e armazenamento em memória nesta fase.
-- `dtos`: dados de entrada/saída entre partes da aplicação.
-- `Program`: interação de terminal; deve traduzir entrada e apresentar resultado, sem concentrar regras de domínio.
-- `src/test`: testes automatizados das regras e fluxos.
+1. `database/01_categories.sql`
+2. `database/02_products.sql`
+3. `database/03_lots.sql`
 
-As implementações JDBC e HTTP futuras devem permanecer fora do domínio, para que regras e testes de negócio continuem funcionando sem servidor ou banco.
+Os scripts criam as tabelas, mas não criam o banco ou o usuário. Configure o banco e conceda ao usuário da aplicação permissões para consultar, inserir, atualizar e excluir dados usados pelos testes.
 
-## Como executar
+Crie `src/main/resources/database.properties` a partir de `src/main/resources/database.properties.example` e informe os valores do seu ambiente:
 
-Requer JDK 25 e Maven instalados. Na raiz do repositório, use `mvn test` para executar os testes e `mvn package` para compilar e empacotar. Para iniciar a aplicação pelo Maven, use `mvn exec:java` somente depois de configurar o plugin correspondente; por enquanto, execute `marketcontrol.Program` pela IDE ou pelo launcher Java com o classpath apropriado.
+```properties
+db.url=jdbc:mariadb://localhost:3306/marketcontrol
+db.user=SEU_USUARIO
+db.password=SUA_SENHA
+```
 
-## Documentação
+O arquivo com credenciais locais está no `.gitignore`; não o inclua no repositório. `DatabaseConnection` carrega esse arquivo como recurso de classpath e usa `db.url`, `db.user` e `db.password` para abrir a conexão.
 
-- [Requisitos, regras de negócio e plano do projeto](docs/requirements.md)
-- [Trilha de aprendizado, etapas, commits sugeridos e avaliação](relatorio-aprendizado-marketcontrol.htm)
-- [Guia de fundamentos Java](guia-java-fundamentos.htm)
-- [Guia de leitura de testes](guia-como-ler-testes-java.htm)
+## Testes
 
-Os dois guias HTML existentes estão sendo revisados para acompanhar a implementação real. Exemplos neles devem ser entendidos como didáticos quando identificados como tais, não como funcionalidades já entregues.
+Execute todos os testes com:
 
-## Critério de conclusão
+```bash
+mvn test
+```
 
-O projeto será considerado concluído quando os requisitos acordados tiverem implementação, testes adequados, documentação de execução, persistência JDBC transacional e uma interface HTTP testável, respeitando as etapas e decisões registradas em `docs/requirements.md`. Requisitos explicitamente adiados (por exemplo, autenticação indicada como v2) devem permanecer marcados como adiados, não como concluídos.
+Os testes de modelo exercitam regras de `Product` e `Lot` sem banco. Os testes de serviço, a verificação de conexão e os testes de lote usam MariaDB/JDBC e precisam do banco e das tabelas preparados. Os testes de integração criam dados identificados para cada execução e removem esses registros ao final.
 
-By Leonardo Alves
+## Executar a aplicação
+
+Compile o projeto com `mvn package` e execute `marketcontrol.Program` pela IDE, configurando `target/classes` e as dependências Maven no classpath. O plugin `exec-maven-plugin` ainda não está configurado no `pom.xml`, portanto `mvn exec:java` não é atualmente um comando suportado.
+
+## Limites atuais
+
+O terminal implementa fluxos iniciais, mas o projeto ainda não oferece fornecedores, autenticação, permissões, histórico/auditoria de movimentações, saídas consolidadas entre múltiplos lotes, perdas, ajustes, alertas de validade próxima ou estoque mínimo. O detalhamento de requisitos e seu estado está em [docs/requirements.md](docs/requirements.md); o registro de desenvolvimento está em [docs/meu_progresso.md](docs/meu_progresso.md).

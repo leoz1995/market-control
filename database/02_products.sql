@@ -1,0 +1,9 @@
+CREATE TABLE products (
+	id CHAR(36) PRIMARY KEY NOT NULL,
+	name VARCHAR(150) NOT NULL,
+	bar_code VARCHAR(100) UNIQUE NOT NULL,
+	description TEXT,
+	category_id CHAR(36) NOT NULL,
+	FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE RESTRICT,
+	unit SMALLINT NOT NULL
+);

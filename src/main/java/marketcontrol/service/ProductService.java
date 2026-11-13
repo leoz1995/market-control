@@ -1,46 +1,42 @@
 package marketcontrol.service;
 
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
-import marketcontrol.domain.model.Category;
 import marketcontrol.domain.model.Product;
 import marketcontrol.domain.model.enums.UnitOfMeasure;
+import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
+import marketcontrol.domain.repository.ProductRepository;
 import marketcontrol.dtos.ProductDTO;
 
 public class ProductService {
-	private final Map<UUID, Product> products = new LinkedHashMap<>();
-	private final Map<String, UUID> barCodeIndex = new HashMap<>();
 	
+	private final ProductRepository productRepository;
 	private final CategoryService categoryService;
 	
-	public ProductService(CategoryService categoryService) {
+	public ProductService(ProductRepository productRepository, CategoryService categoryService) {
 		
+	    if (productRepository == null)
+	        throw new IllegalArgumentException("Repositório de produtos não instanciado.");
+	    
 		if(categoryService == null)
 			throw new IllegalArgumentException("Serviço de categoria não instanciado corretamente.");
 		
+		this.productRepository = productRepository;
 		this.categoryService = categoryService;
 	}
 	
 	public ReadOnlyProduct saveProduct(String name, String barCode, String description, UUID categoryId, UnitOfMeasure unit) {
-		Category category = categoryService.findById(categoryId);
-		
-		if(category == null)
-			throw new IllegalArgumentException("Categoria não encontrada.");
-		
+		ReadOnlyCategory category = categoryService.findById(categoryId);	
 		Product product = Product.create(name, barCode, description, category, unit);
 		
 		String normalizedBarCode = normalizeBarCode(product.getBarCode());
-		barCodeCheck(normalizedBarCode, product.getId());
+		if(productRepository.existsByBarCode(normalizedBarCode))
+			throw new IllegalArgumentException("Já existe um produto com esse código de barras.");
 		
-		products.put(product.getId(), product);
-		barCodeIndex.put(normalizedBarCode, product.getId());
+		productRepository.save(product);
 		
 		return product;
 	}
@@ -52,62 +48,39 @@ public class ProductService {
 		if(dto == null)
 			throw new IllegalArgumentException("Produto não foi identificado.");
 
-		Product product = products.get(uuid);
-		
-		if(product == null)
-			throw new IllegalArgumentException("Produto com UUID informado não foi encontrado.");
+		Product product = productRepository.findById(uuid)
+				.orElseThrow(() -> new IllegalArgumentException("Produto com UUID informado não foi encontrado."));
 		
 		if(dto.unit() != product.getUnit())
 		    throw new IllegalArgumentException("A unidade de medida não pode ser alterada.");
 		
-		if(dto.barCode() == null)
-			throw new IllegalArgumentException("Código de barra é nullo.");
-		
-		String oldBarCode = product.getBarCode();
 		String normalizedBarCode = normalizeBarCode(dto.barCode());
-		
-		barCodeCheck(normalizedBarCode, uuid);
+		if(productRepository.existsByBarCodeAndIdNot(normalizedBarCode, uuid))
+			throw new IllegalArgumentException("Esse código de barra já está em uso por outro produto.");
 
-		Category currentCategory = categoryService.findById(dto.categoryId());
+		ReadOnlyCategory category = categoryService.findById(dto.categoryId());
 		
-		if(currentCategory == null)
-			throw new IllegalArgumentException("Categoria não encontrada.");
+		product.edit(dto.name(), normalizedBarCode, dto.description(), category);
 		
-		product.edit(dto.name(), normalizedBarCode, dto.description(), currentCategory);
-		barCodeApply(normalizedBarCode, oldBarCode, uuid);
+		productRepository.update(product);
 		
 		return product;
 	}
 	
-	public ReadOnlyProduct findByBarCode(String barCode) {
-		String normalizedBarCode = normalizeBarCode(barCode);
-		
-		ReadOnlyProduct product = products.get(barCodeIndex.get(normalizedBarCode));
-		return Optional.ofNullable(product).orElseThrow(() -> new IllegalArgumentException("Código de barras inválido."));
-	}
-	
-	private void barCodeCheck(String newBarCode, UUID uuid) {
-		UUID existingId = barCodeIndex.get(newBarCode);
-		if (existingId != null && !existingId.equals(uuid))
-			throw new IllegalArgumentException("Já existe outro produto com esse código cadastrado.");
-	}
-	
-	private void barCodeApply(String newBarCode, String oldBarCode, UUID uuid) {
-		if (!oldBarCode.equals(newBarCode)) {
-			barCodeIndex.remove(oldBarCode);
-			barCodeIndex.put(newBarCode, uuid);
-		}
-	}
-	
-	Product searchById(UUID productId) {
-		Product product = products.get(productId);
-		
-		return product;
+	public boolean existsBarCode(String barCode) {
+		String normalizedBarCode = normalizeBarCode(barCode);	
+		return productRepository.existsByBarCode(normalizedBarCode);
 	}
 	
 	public ReadOnlyProduct findById(UUID productId) {
-		return searchById(productId);
+		return productRepository.findById(productId)
+				.orElseThrow(() -> new IllegalArgumentException("Produto com UUID informado não foi encontrado."));
 	}
+	
+	public ReadOnlyProduct findByBarCode(String barCode) {
+		return productRepository.findByBarCode(barCode).orElseThrow(() -> new IllegalArgumentException("Código de barras não corresponde à um produto cadastrado."));
+	}
+	
 	private String normalizeBarCode(String barCode) {
 		if(barCode == null || barCode.isBlank())
 			throw new IllegalArgumentException("Código de barras inválido.");
@@ -116,6 +89,6 @@ public class ProductService {
 	}
 	
 	public List<ReadOnlyProduct> getProducts(){
-		return List.copyOf(products.values());
+		return productRepository.findAll().stream().map(prod -> (ReadOnlyProduct) prod).toList();
 	}
 }

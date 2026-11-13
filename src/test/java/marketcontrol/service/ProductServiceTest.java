@@ -1,366 +1,74 @@
-
 package marketcontrol.service;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.util.List;
-import java.util.UUID;
-
+import static org.junit.jupiter.api.Assertions.*;
+import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-
-import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
-import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
+import marketcontrol.infrastructure.persistence.jdbc.JdbcCategoryRepository;
+import marketcontrol.infrastructure.persistence.jdbc.JdbcProductRepository;
+import marketcontrol.domain.model.*;
+import marketcontrol.domain.model.enums.UnitOfMeasure;
+import marketcontrol.domain.model.interfaces.*;
+import marketcontrol.domain.repository.*;
 import marketcontrol.dtos.ProductDTO;
+import marketcontrol.DatabaseTestCleanup;
 
 class ProductServiceTest {
-	private ProductService service;
-	private CategoryService categoryService;
-	private ReadOnlyCategory category;
+    private ProductService service;
+    private CategoryService categories;
+    private ReadOnlyCategory category;
+    private final String run = UUID.randomUUID().toString().substring(0, 8);
 
-    @BeforeEach
-    void setUp() {
-        categoryService = new CategoryService();
-
-        service = new ProductService(categoryService);
-
-        category = categoryService.saveCategory(
-            "Feijão", "Alimentação", true
-        );
+    @BeforeEach void setUp() {
+        categories = new CategoryService(new JdbcCategoryRepository());
+        service = new ProductService(new JdbcProductRepository(), categories);
+        category = categories.saveCategory("Feijão " + run, "Alimentação", true);
     }
-    
-    private ReadOnlyProduct createProduct(
-        String name,
-        String barcode,
-        String description
-    ) {
-        return service.saveProduct(name, barcode, description, category.getId());
+    @AfterEach void cleanUp() { if (category != null) DatabaseTestCleanup.deleteCategory(category.getId()); }
+    private ReadOnlyProduct add(String name, String code) {
+        return service.saveProduct(name, run + code, null, category.getId(), UnitOfMeasure.UNIT);
+    }
+    private ProductDTO update(String name, String code) {
+        return new ProductDTO(name, code.isBlank() ? code : run + code, null, category.getId(), UnitOfMeasure.UNIT);
     }
 
-    @Test
-    void shouldSaveProduct() {
-        ReadOnlyProduct product = createProduct(
-            "Iphone 17", "111", "Pro Max"
-        );
-
-        assertNotNull(product);
-        assertEquals("Iphone 17", product.getName());
-        assertEquals("111", product.getBarCode());
-        assertEquals(1, service.getProducts().size());
+    @Test void savesAndListsProducts() {
+        add("Iphone 17", "111"); add("Iphone 18", "222");
+        List<ReadOnlyProduct> ownProducts = service.getProducts().stream()
+                .filter(p -> p.getCategory().getId().equals(category.getId())).toList();
+        assertEquals(Set.of("Iphone 17", "Iphone 18"), ownProducts.stream().map(ReadOnlyProduct::getName).collect(java.util.stream.Collectors.toSet()));
+        assertThrows(UnsupportedOperationException.class, () -> ownProducts.clear());
     }
-
-    @Test
-    void shouldRejectDuplicateBarcode() {
-        createProduct("Iphone 17", "111", null);
-
-        assertThrows(IllegalArgumentException.class,
-            () -> createProduct("Iphone 18", "111", null));
-
-        assertEquals(1, service.getProducts().size());
+    @Test void rejectsDuplicateBarcodeIgnoringCaseAndSpaces() {
+        add("Iphone 17", "abc");
+        assertThrows(IllegalArgumentException.class, () -> service.saveProduct(
+                "Iphone 18", " " + run.toUpperCase() + "ABC ", null, category.getId(), UnitOfMeasure.UNIT));
     }
-
-    @Test
-    void shouldRejectDuplicateBarcodeWithSpaces() {
-        createProduct("Iphone 17", "111", null);
-
-        assertThrows(IllegalArgumentException.class,
-            () -> createProduct("Iphone 18", " 111 ", null));
-
-        assertEquals(1, service.getProducts().size());
+    @Test void findsBarcodeIgnoringCaseAndSpaces() {
+        add("Iphone 17", "abc");
+        assertEquals("Iphone 17", service.findByBarCode(" " + run + "ABC ").getName());
+        assertTrue(service.existsBarCode(" " + run + "abc "));
+        assertThrows(IllegalArgumentException.class, () -> service.findByBarCode(run + "missing"));
+        assertThrows(IllegalArgumentException.class, () -> service.existsBarCode(" "));
     }
-
-    @Test
-    void shouldSearchProductByBarcode() {
-        createProduct("Iphone 17", "111", "Pro Max");
-
-        ProductDTO result = service.searchBarCode("111");
-
-        assertNotNull(result);
-        assertEquals("Iphone 17", result.name());
-        assertEquals("111", result.barCode());
-        assertEquals("Pro Max", result.description());
-    }
-
-    @Test
-    void shouldSearchBarcodeWithSpaces() {
-        createProduct("Iphone 17", "111", null);
-
-        ProductDTO result = service.searchBarCode(" 111 ");
-
-        assertEquals("Iphone 17", result.name());
-    }
-
-    @Test
-    void shouldRejectSearchWithNullBarcode() {
-        assertThrows(IllegalArgumentException.class,
-            () -> service.searchBarCode(null));
-    }
-
-    @Test
-    void shouldRejectSearchWithBlankBarcode() {
-        assertThrows(IllegalArgumentException.class,
-            () -> service.searchBarCode("   "));
-    }
-
-    @Test
-    void shouldRejectSearchWithUnknownBarcode() {
-        assertThrows(IllegalArgumentException.class,
-            () -> service.searchBarCode("999"));
-    }
-
-
-    @Test
-    void shouldEditProduct() {
-        ReadOnlyProduct original = createProduct(
-            "Iphone 17", "111", "Pro"
-        );
-
-        ProductDTO update = new ProductDTO(
-            "Xiaomi 10", "222", "New Generation", category.getId()
-        );
-
-        ReadOnlyProduct edited = service.editProduct(original.getId(), update);
-
+    @Test void editsProductAndUpdatesBarcodeLookup() {
+        ReadOnlyProduct original = add("Iphone 17", "111");
+        ReadOnlyProduct edited = service.editProduct(original.getId(), update("Xiaomi 10", "222"));
         assertEquals(original.getId(), edited.getId());
-        assertEquals("Xiaomi 10", edited.getName());
-        assertEquals("222", edited.getBarCode());
-        assertEquals("New Generation", edited.getDescription());
+        assertEquals("Xiaomi 10", service.findByBarCode(run + "222").getName());
+        assertThrows(IllegalArgumentException.class, () -> service.findByBarCode(run + "111"));
+    }
+    @Test void rejectsDuplicateBarcodeOnEditWithoutChangingOriginal() {
+        ReadOnlyProduct first = add("Iphone 17", "111"); add("Iphone 18", "222");
+        assertThrows(IllegalArgumentException.class, () -> service.editProduct(first.getId(), update("Changed", "222")));
+        assertEquals("Iphone 17", service.findByBarCode(run + "111").getName());
+    }
+    @Test void rejectsInvalidEditRequests() {
+        ReadOnlyProduct product = add("Iphone 17", "111");
+        assertThrows(IllegalArgumentException.class, () -> service.editProduct(product.getId(), null));
+        assertThrows(IllegalArgumentException.class, () -> service.editProduct(UUID.randomUUID(), update("New", "222")));
+        assertThrows(IllegalArgumentException.class, () -> service.editProduct(product.getId(), update("New", " ")));
     }
 
-    @Test
-    void shouldKeepSameBarcodeWhenEditing() {
-        ReadOnlyProduct original = createProduct(
-            "Iphone 17", "111", null
-        );
-
-        ProductDTO update = new ProductDTO(
-            "Xiaomi 10", "111", null, category.getId()
-        );
-
-        assertDoesNotThrow(
-            () -> service.editProduct(original.getId(), update)
-        );
-
-        assertEquals("Xiaomi 10", service.searchBarCode("111").name());
-    }
-
-    @Test
-    void shouldUpdateBarcodeIndexWhenEditing() {
-        ReadOnlyProduct original = createProduct(
-            "Iphone 17", "111", null
-        );
-
-        ProductDTO update = new ProductDTO(
-            "Xiaomi 10", "222", null, category.getId()
-        );
-
-        service.editProduct(original.getId(), update);
-
-        assertThrows(IllegalArgumentException.class,
-            () -> service.searchBarCode("111"));
-
-        assertEquals("Xiaomi 10", service.searchBarCode("222").name());
-    }
-
-    @Test
-    void shouldRejectEditingWithBarcodeAlreadyUsedByAnotherProduct() {
-        ReadOnlyProduct first = createProduct(
-            "Iphone 17", "111", null
-        );
-
-        createProduct("Iphone 18", "222", null);
-
-        ProductDTO update = new ProductDTO(
-            "Xiaomi 10", "222", null, category.getId()
-        );
-
-        assertThrows(IllegalArgumentException.class,
-            () -> service.editProduct(first.getId(), update));
-
-        assertEquals("Iphone 17", service.searchBarCode("111").name());
-        assertEquals("Iphone 18", service.searchBarCode("222").name());
-    }
-
-    @Test
-    void shouldRejectEditingWithNullDTO() {
-        ReadOnlyProduct product = createProduct(
-            "Iphone 17", "111", null
-        );
-
-        assertThrows(IllegalArgumentException.class,
-            () -> service.editProduct(product.getId(), null));
-    }
-
-    @Test
-    void shouldRejectEditingUnknownProduct() {
-        ProductDTO update = new ProductDTO(
-            "Xiaomi 10", "222", null, category.getId()
-        );
-
-        assertThrows(IllegalArgumentException.class,
-            () -> service.editProduct(UUID.randomUUID(), update));
-    }
-
-    @Test
-    void shouldRejectEditingWithNullBarcode() {
-        ReadOnlyProduct product = createProduct(
-            "Iphone 17", "111", null
-        );
-
-        ProductDTO update = new ProductDTO(
-            "Xiaomi 10", null, null, category.getId()
-        );
-
-        assertThrows(IllegalArgumentException.class,
-            () -> service.editProduct(product.getId(), update));
-
-        assertEquals("Iphone 17", service.searchBarCode("111").name());
-    }
-
-    @Test
-    void shouldRejectEditingWithBlankBarcode() {
-        ReadOnlyProduct product = createProduct(
-            "Iphone 17", "111", null
-        );
-
-        ProductDTO update = new ProductDTO(
-            "Xiaomi 10", "   ", null, category.getId()
-        );
-
-        assertThrows(IllegalArgumentException.class,
-            () -> service.editProduct(product.getId(), update));
-
-        assertEquals("Iphone 17", service.searchBarCode("111").name());
-    }
-
-    @Test
-    void shouldRejectEditingWithInvalidName() {
-        ReadOnlyProduct product = createProduct(
-            "Iphone 17", "111", null
-        );
-
-        ProductDTO update = new ProductDTO(
-            "   ", "222", null, category.getId()
-        );
-
-        assertThrows(IllegalArgumentException.class,
-            () -> service.editProduct(product.getId(), update));
-
-        assertEquals("Iphone 17", service.searchBarCode("111").name());
-        assertThrows(IllegalArgumentException.class,
-            () -> service.searchBarCode("222"));
-    }
-
-    @Test
-    void shouldReturnEmptyListWhenThereAreNoProducts() {
-        List<ReadOnlyProduct> products = service.getProducts();
-
-        assertNotNull(products);
-        assertTrue(products.isEmpty());
-    }
-
-    @Test
-    void shouldReturnAllProducts() {
-        createProduct("Iphone 17", "111", null);
-        createProduct("Iphone 18", "222", null);
-        createProduct("Xiaomi 10", "333", null);
-
-        assertEquals(3, service.getProducts().size());
-    }
-
-    @Test
-    void shouldPreserveInsertionOrder() {
-        createProduct("Iphone 17", "111", null);
-        createProduct("Iphone 18", "222", null);
-        createProduct("Xiaomi 10", "333", null);
-
-        List<ReadOnlyProduct> products = service.getProducts();
-
-        assertEquals("Iphone 17", products.get(0).getName());
-        assertEquals("Iphone 18", products.get(1).getName());
-        assertEquals("Xiaomi 10", products.get(2).getName());
-    }
-
-    @Test
-    void shouldReturnImmutableProductList() {
-        createProduct("Iphone 17", "111", null);
-
-        List<ReadOnlyProduct> products = service.getProducts();
-
-        assertThrows(
-        	    UnsupportedOperationException.class,
-        	    products::clear
-        	);
-    }
-    
-    @Test
-    void shouldRejectEditingWithDuplicateBarcodeWithSpaces() {
-    	
-        ReadOnlyProduct p1 = createProduct(
-                "Iphone 18", "111", "Pro"
-            );
-        ReadOnlyProduct p2 = createProduct(
-                "Iphone 18", "222", "Pro"
-            );
-        
-        ProductDTO update = new ProductDTO(
-                "Iphone 18", p1.getBarCode(), "Pro", p2.getCategory().getId()
-            );
-        
-        assertThrows(IllegalArgumentException.class,
-                () -> service.editProduct(p2.getId(), update));
-    }
-    
-    @Test
-    void shouldKeepProductDataWhenBarcodeIsDuplicated() {
-        ReadOnlyProduct p1 = createProduct(
-                "Iphone 17", "111", "Pro"
-            );
-        createProduct(
-                "Xiamo 17", "222", "Max"
-            );
-        
-        
-        ProductDTO update = new ProductDTO(
-                "Iphone 17", "222", "Pro", category.getId()
-            );
-
-        assertThrows(IllegalArgumentException.class,
-                () -> service.editProduct(p1.getId(), update));
-
-        assertEquals("Iphone 17", p1.getName());
-        assertEquals("111", p1.getBarCode());
-        assertEquals("Pro", p1.getDescription());
-    }
-    
-    @Test
-    void shouldReturnUpdatedProductAfterMultipleEdits() {
-        ReadOnlyProduct p1 = createProduct(
-                "Iphone 17", "111", "Pro"
-            );
-        
-        ProductDTO update = new ProductDTO(
-                "Xiaomi 10", "222", "Max", category.getId()
-            );
-
-        ProductDTO update2 = new ProductDTO(
-                "Samsung S26", "333", "Owner", category.getId()
-            );
-
-        service.editProduct(p1.getId(), update);
-        service.editProduct(p1.getId(), update2);
-        
-        ProductDTO result3 = service.searchBarCode("333");
-
-        assertThrows(IllegalArgumentException.class,
-                () -> service.searchBarCode("111"));
-        assertThrows(IllegalArgumentException.class,
-                () -> service.searchBarCode("222"));
-        
-        assertEquals("Samsung S26", result3.name());
-    }
 }

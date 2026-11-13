@@ -8,12 +8,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.Month;
+import marketcontrol.domain.model.enums.UnitOfMeasure;
 
 import org.junit.jupiter.api.Test;
 
 public class LotTest {
 	final Category cat = Category.create("Grãos", "Melhores grãos", true);
-	final Product p = Product.create("Feijão", "12345678900A", "Enlatados", cat);
+	final Product p = Product.create("Feijão", "12345678900A", "Enlatados", cat, UnitOfMeasure.UNIT);
 	
 	@Test
 	void shouldCreateLotWithValidData() {

@@ -11,12 +11,10 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
-import marketcontrol.service.CategoryService;
+import marketcontrol.domain.model.enums.UnitOfMeasure;
 
 class ProductTest {
-	private CategoryService categoryService = new CategoryService();
-	private ReadOnlyCategory cat = categoryService.saveCategory("Feijão", "Enlatados", true);
-	Category category = categoryService.findById(cat.getId());
+	private Category category = Category.create("Feijão", "Enlatados", true);
 	
     @Test
     void shouldCreateProductWithValidData() {
@@ -25,7 +23,7 @@ class ProductTest {
             "A1264897S302027",
             "Pro Max Edition",
             category
-        );
+        , UnitOfMeasure.UNIT);
 
         assertNotNull(product);
         assertNotNull(product.getId());
@@ -36,8 +34,8 @@ class ProductTest {
 
     @Test
     void shouldGenerateUniqueIds() {
-        Product first = Product.create("Iphone 17", "111", null, category);
-        Product second = Product.create("Iphone 18", "222", null, category);
+        Product first = Product.create("Iphone 17", "111", null, category, UnitOfMeasure.UNIT);
+        Product second = Product.create("Iphone 18", "222", null, category, UnitOfMeasure.UNIT);
 
         assertNotEquals(first.getId(), second.getId());
     }
@@ -45,20 +43,20 @@ class ProductTest {
     @Test
     void shouldRejectProductWithNullName() {
         assertThrows(IllegalArgumentException.class,
-            () -> Product.create(null, "111", null, category));
+            () -> Product.create(null, "111", null, category, UnitOfMeasure.UNIT));
     }
 
     @Test
     void shouldRejectProductWithBlankName() {
         assertThrows(IllegalArgumentException.class,
-            () -> Product.create("   ", "111", null, category));
+            () -> Product.create("   ", "111", null, category, UnitOfMeasure.UNIT));
     }
 
     @Test
     void shouldNormalizeProductName() {
         Product product = Product.create(
             "  Iphone 17  ", "111", null, category
-        );
+        , UnitOfMeasure.UNIT);
 
         assertEquals("Iphone 17", product.getName());
     }
@@ -66,34 +64,34 @@ class ProductTest {
     @Test
     void shouldRejectProductWithNullBarcode() {
         assertThrows(IllegalArgumentException.class,
-            () -> Product.create("Iphone 17", null, null, category));
+            () -> Product.create("Iphone 17", null, null, category, UnitOfMeasure.UNIT));
     }
 
     @Test
     void shouldRejectProductWithBlankBarcode() {
         assertThrows(IllegalArgumentException.class,
-            () -> Product.create("Iphone 17", "   ", null, category));
+            () -> Product.create("Iphone 17", "   ", null, category, UnitOfMeasure.UNIT));
     }
 
     @Test
     void shouldNormalizeBarcode() {
         Product product = Product.create(
             "Iphone 17", "  111222333  ", null, category
-        );
+        , UnitOfMeasure.UNIT);
 
         assertEquals("111222333", product.getBarCode());
     }
 
     @Test
     void shouldAllowNullDescription() {
-        Product product = Product.create("Iphone 17", "111", null, category);
+        Product product = Product.create("Iphone 17", "111", null, category, UnitOfMeasure.UNIT);
 
         assertNull(product.getDescription());
     }
 
     @Test
     void shouldConvertBlankDescriptionToNull() {
-        Product product = Product.create("Iphone 17", "111", "   ", category);
+        Product product = Product.create("Iphone 17", "111", "   ", category, UnitOfMeasure.UNIT);
 
         assertNull(product.getDescription());
     }
@@ -102,14 +100,14 @@ class ProductTest {
     void shouldNormalizeDescription() {
         Product product = Product.create(
             "Iphone 17", "111", "  Pro Max  ", category
-        );
+        , UnitOfMeasure.UNIT);
 
         assertEquals("Pro Max", product.getDescription());
     }
     
     @Test
     void shouldEditProductWithValidData() {
-        Product product = Product.create("Iphone 17", "111", "Pro", category);
+        Product product = Product.create("Iphone 17", "111", "Pro", category, UnitOfMeasure.UNIT);
 
         product.edit("Xiaomi 10", "222", "New Generation", category);
 
@@ -120,7 +118,7 @@ class ProductTest {
 
     @Test
     void shouldPreserveIdAfterEditing() {
-        Product product = Product.create("Iphone 17", "111", null, category);
+        Product product = Product.create("Iphone 17", "111", null, category, UnitOfMeasure.UNIT);
         UUID originalId = product.getId();
 
         product.edit("Xiaomi 10", "222", null, category);
@@ -130,7 +128,7 @@ class ProductTest {
 
     @Test
     void shouldNormalizeDataWhenEditing() {
-        Product product = Product.create("Iphone 17", "111", null, category);
+        Product product = Product.create("Iphone 17", "111", null, category, UnitOfMeasure.UNIT);
 
         product.edit("  Xiaomi 10  ", "  222  ", "  New  ", category);
 
@@ -141,7 +139,7 @@ class ProductTest {
 
     @Test
     void shouldRejectEditWithNullName() {
-        Product product = Product.create("Iphone 17", "111", null, category);
+        Product product = Product.create("Iphone 17", "111", null, category, UnitOfMeasure.UNIT);
 
         assertThrows(IllegalArgumentException.class,
             () -> product.edit(null, "222", null, category));
@@ -149,7 +147,7 @@ class ProductTest {
 
     @Test
     void shouldRejectEditWithBlankName() {
-        Product product = Product.create("Iphone 17", "111", null, category);
+        Product product = Product.create("Iphone 17", "111", null, category, UnitOfMeasure.UNIT);
 
         assertThrows(IllegalArgumentException.class,
             () -> product.edit("   ", "222", null, category));
@@ -157,7 +155,7 @@ class ProductTest {
 
     @Test
     void shouldRejectEditWithNullBarcode() {
-        Product product = Product.create("Iphone 17", "111", null, category);
+        Product product = Product.create("Iphone 17", "111", null, category, UnitOfMeasure.UNIT);
 
         assertThrows(IllegalArgumentException.class,
             () -> product.edit("Xiaomi 10", null, null, category));
@@ -165,7 +163,7 @@ class ProductTest {
 
     @Test
     void shouldRejectEditWithBlankBarcode() {
-        Product product = Product.create("Iphone 17", "111", null, category);
+        Product product = Product.create("Iphone 17", "111", null, category, UnitOfMeasure.UNIT);
 
         assertThrows(IllegalArgumentException.class,
             () -> product.edit("Xiaomi 10", "   ", null, category));
@@ -173,7 +171,7 @@ class ProductTest {
 
     @Test
     void shouldPreserveDataWhenEditFails() {
-        Product product = Product.create("Iphone 17", "111", "Pro", category);
+        Product product = Product.create("Iphone 17", "111", "Pro", category, UnitOfMeasure.UNIT);
 
         assertThrows(IllegalArgumentException.class,
             () -> product.edit("   ", "222", "New", category));

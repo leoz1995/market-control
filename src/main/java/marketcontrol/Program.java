@@ -9,20 +9,30 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.UUID;
 
+import marketcontrol.domain.model.Lot;
 import marketcontrol.domain.model.enums.UnitOfMeasure;
 import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.domain.model.interfaces.ReadOnlyLot;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
+import marketcontrol.domain.repository.CategoryRepository;
+import marketcontrol.domain.repository.LotRepository;
+import marketcontrol.domain.repository.ProductRepository;
 import marketcontrol.dtos.ProductDTO;
+import marketcontrol.infrastructure.persistence.jdbc.JdbcCategoryRepository;
+import marketcontrol.infrastructure.persistence.jdbc.JdbcLotRepository;
+import marketcontrol.infrastructure.persistence.jdbc.JdbcProductRepository;
 import marketcontrol.service.CategoryService;
 import marketcontrol.service.LotService;
 import marketcontrol.service.ProductService;
 
 public class Program {
 
-	private static final CategoryService categoryService = new CategoryService();
-	private static final ProductService productService = new ProductService(categoryService);
-	private static final LotService lotService = new LotService(productService);
+	private static final ProductRepository productRepository = new JdbcProductRepository();
+	private static final CategoryRepository categoryRepository = new JdbcCategoryRepository();
+	private static final CategoryService categoryService = new CategoryService(categoryRepository);
+	private static final ProductService productService = new ProductService(productRepository, categoryService);
+	private static final LotRepository lotRepository = new JdbcLotRepository(productRepository);
+	private static final LotService lotService = new LotService(productService, lotRepository);
 
 	public static void main(String[] args) {
 		try (Scanner sc = new Scanner(System.in)){
@@ -96,7 +106,7 @@ public class Program {
 		System.out.println("Unidade selecionada: " + unitValue);
 		
 		categoryService.getCategories().forEach(System.out::println);
-
+		
 		UUID catId = readCategoryId(sc);
 		
 		ReadOnlyProduct save = productService.saveProduct(name, code, desc, catId, unitValue);
@@ -193,7 +203,7 @@ public class Program {
 	private static void consultLotAndStock(Scanner sc) {
 		UUID id = readProductId(sc);
 		
-		List<ReadOnlyLot> lots = lotService.findByProductId(id);
+		List<Lot> lots = lotService.findByProductId(id);
 		if(lots.isEmpty())
 		{
 			System.out.println("Este produto ainda não possui lotes cadastrados.");
@@ -282,30 +292,23 @@ public class Program {
 		}
 	}
 	
-	private static UUID readCategoryId(Scanner sc) {
-		if(categoryService.getCategories().isEmpty())
-			throw new IllegalStateException("Sem categorias cadastradas no momento.");
-		
+	private static UUID readCategoryId(Scanner sc) {		
 		while(true) {
 			UUID id = readUUID(sc, "Digite o ID da categoria: ");
 
-			ReadOnlyCategory category = categoryService.getCategories()
-					.stream()
-					.filter(c -> c.getId().equals(id))
-					.findFirst()
-					.orElse(null);
-			
-			if(category == null) {
+			try {
+				ReadOnlyCategory category = categoryService.findById(id);
+				
+				if(!category.isActive()) {
+					System.out.println("Categoria inativa. Escolha uma categoria ativa. ");
+					continue;
+				}
+				
+				return category.getId();
+			}
+			catch(IllegalArgumentException e) {
 				System.out.println("Categoria não encontrada. Tente novamente.");
-				continue;
 			}
-			
-			if(!category.isActive()) {
-				System.out.println("Categoria inativa. Escolha uma categoria ativa. ");
-				continue;
-			}
-			
-			return id;
 		}
 	}
 	

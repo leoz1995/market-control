@@ -1,0 +1,5 @@
+CREATE TABLE categories (
+	id CHAR(36) PRIMARY KEY UNIQUE,
+	name VARCHAR(100) NOT NULL,
+	description TEXT,
+	active BOOLEAN NOT NULL);

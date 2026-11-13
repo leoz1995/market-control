@@ -2,77 +2,89 @@ package marketcontrol.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import marketcontrol.domain.model.Lot;
-import marketcontrol.domain.model.Product;
 import marketcontrol.domain.model.interfaces.ReadOnlyLot;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
+import marketcontrol.domain.repository.LotRepository;
 
 public class LotService {
 	
 	private final ProductService productService;
-	private final Map<UUID, Lot> lots = new LinkedHashMap<>();
+	private final LotRepository lotRepository;
 	
-	public LotService(ProductService productService) {		
+	public LotService(ProductService productService, LotRepository lotRepository) {		
 		if(productService == null)
 			throw new IllegalArgumentException("Serviço de Produto não Instanciado.");
 		
+		if(lotRepository == null)
+			throw new IllegalArgumentException("Repositório de Lot não Instanciado.");
+		
 		this.productService = productService;
+		this.lotRepository = lotRepository;
 	}
 
 	public ReadOnlyLot save(UUID productId, LocalDate entryDate, LocalDate expirationDate, BigDecimal initialQuantity) {
 		if(productId == null)
 			throw new IllegalArgumentException("O produto não é válido.");
 		
-		Product product = productService.searchById(productId);
+		ReadOnlyProduct product = productService.findById(productId);
 		
 		if(product == null)
 			throw new IllegalArgumentException("ID do produto inválido.");
 		
 		Lot lot = Lot.create(product, entryDate, expirationDate, initialQuantity);
-		lots.put(lot.getId(), lot);
+		lotRepository.save(lot);
 		
 		return lot;	
 	}
 
 	public ReadOnlyLot findById(UUID id){
-		if(id == null)
-			throw new IllegalArgumentException("Lot ID inexistente.");
+		Lot lot = lotRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("ID inválido."));
 		
-		Lot lot = lots.get(id);
 		if(lot == null)
 			throw new IllegalArgumentException("Lote não encontrado.");
 		
 		return lot;
 	}
 	
-	public List<ReadOnlyLot> findByProductId(UUID productId){
+	public List<Lot> findByProductId(UUID productId){
 		if(productId == null)
 			throw new IllegalArgumentException("Id do produto inválido.");
 		
-		ReadOnlyProduct p = productService.searchById(productId);
+		ReadOnlyProduct p = productService.findById(productId);
+		
 		if(p == null)
 			throw new IllegalArgumentException("ID do produto inválido.");
 		
-		return lots.values().stream().filter(lot -> lot.getProduct().getId().equals(productId)).map(lot -> (ReadOnlyLot) lot).toList();
+		List<Lot> lots = lotRepository.findByProductId(productId);
+		return List.copyOf(lots);
+	}
+	
+	public void seller(UUID lotId, BigDecimal quantity) {
+		
+		if(lotId == null)
+			throw new IllegalArgumentException("Id do lote incorreto.");
+		
+		if(quantity == null)
+			throw new IllegalArgumentException("Quantidade inválida.");
+		
+		Lot lot = lotRepository.findById(lotId).orElseThrow(() -> new IllegalArgumentException("O lote não está disponível."));
+		lot.consume(quantity);
+		lotRepository.update(lot);
 	}
 	
 	public BigDecimal getTotalAvailableQuantity(UUID productId) {
 		if(productId == null)
 			throw new IllegalArgumentException("Insira um ID válido.");
 		
-		ReadOnlyProduct p = productService.searchById(productId);
+		ReadOnlyProduct p = productService.findById(productId);
 		
 		if(p == null)
 			throw new IllegalArgumentException("ID do produto inválido.");
 		
-		return lots.values().stream()
-				.filter(lot -> lot.getProduct().getId().equals(productId) && !lot.isExpired())
-				.map(ReadOnlyLot::getAvailableQuantity)
-				.reduce(BigDecimal.ZERO, BigDecimal::add);
+		return lotRepository.getTotalAvailableQuantity(productId);
 	}
 }

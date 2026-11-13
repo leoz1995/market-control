@@ -17,8 +17,14 @@
         <junit.version>5.11.4</junit.version>
     </properties>
 
-    <dependencies>
-        <!-- JUnit 5: testes automatizados -->
+    <dependencies> 
+		<!-- Driver JDBC do MariaDB -->
+		<dependency>
+			<groupId>org.mariadb.jdbc</groupId>
+			<artifactId>mariadb-java-client</artifactId>
+			<version>3.5.6</version>
+		</dependency>
+		<!-- JUnit 5: testes automatizados -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -29,7 +35,7 @@
 
     <build>
         <plugins>
-            <!-- Compilação Java -->
+			<!-- Compilação Java -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -39,7 +45,7 @@
                 </configuration>
             </plugin>
 
-            <!-- Execução dos testes JUnit 5 -->
+			<!-- Execução dos testes JUnit 5 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
