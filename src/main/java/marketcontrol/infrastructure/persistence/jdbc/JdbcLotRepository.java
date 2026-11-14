@@ -32,15 +32,14 @@ public class JdbcLotRepository implements LotRepository{
 	}
 	
 	@Override
-	public void save(Lot lot) {
+	public void save(Connection conn, Lot lot) {
 		
 		if(lot == null)
 			throw new IllegalArgumentException("O lote não pode ser null.");
 		
 		String sql = "INSERT INTO lots (id, product_id, entry_date, expiration_date, initial_quantity, available_quantity) VALUES (?, ?, ?, ?, ?, ?)";
 		
-		try(Connection conn = DatabaseConnection.getConnection();
-				PreparedStatement pstm = conn.prepareStatement(sql)){
+		try(PreparedStatement pstm = conn.prepareStatement(sql)){
 			
 			Date entry = Date.valueOf(lot.getEntryDate());
 			Date expires = Date.valueOf(lot.getExpirationDate());
@@ -165,24 +164,78 @@ public class JdbcLotRepository implements LotRepository{
 	}
 
 	@Override
-	public void update(Lot lot) {
-		if(lot == null)
-			throw new IllegalArgumentException("O Lote null não pode ser atualizado. Preencha as informações corretamente!");
+	public int decreaseAvailableQuantityForSale(Connection conn, UUID uuid, BigDecimal quantity) {
 		
-		String sql = "UPDATE lots SET available_quantity = ? WHERE id = ?";
+		if(conn == null)
+			throw new IllegalArgumentException("Conexão mal sucedida.");
 		
-		try(Connection conn = DatabaseConnection.getConnection();
-				PreparedStatement pstm = conn.prepareStatement(sql)){
-
+		if(uuid == null)
+			throw new IllegalArgumentException("UUID null, preencha corretamente.");
 			
-			pstm.setBigDecimal(1, lot.getAvailableQuantity());
-			pstm.setString(2, lot.getId().toString());
-
-			pstm.executeUpdate();
+		if(quantity == null)
+			throw new IllegalArgumentException("Quantidade nulla, preencha corretamente.");
+		
+		if(quantity.compareTo(BigDecimal.ZERO) <= 0)
+			throw new IllegalArgumentException("A quantidade não pode ser zero ou negativo.");
+		
+		String sql = "UPDATE lots SET available_quantity = available_quantity - ? WHERE id = ? AND available_quantity >= ? AND expiration_date >= CURRENT_DATE";
+		
+		try(PreparedStatement pstm = conn.prepareStatement(sql)){
 			
+			pstm.setBigDecimal(1, quantity);
+			pstm.setString(2, uuid.toString());
+			pstm.setBigDecimal(3, quantity);
+			
+			return pstm.executeUpdate();
 		}
 		catch(SQLException e) {
 			throw new PersistenceException("Não foi possível atualizar o Lote.", e);
-		}	
+		}
+	}
+
+	@Override
+	public int decreaseAvailableQuantityForLoss(Connection conn, UUID uuid, BigDecimal quantity) {
+		
+		if(conn == null)
+			throw new IllegalArgumentException("Conexão mal sucedida.");
+		
+		if(uuid == null)
+			throw new IllegalArgumentException("UUID null, preencha corretamente.");
+			
+		if(quantity == null)
+			throw new IllegalArgumentException("Quantidade nulla, preencha corretamente.");
+		
+		if(quantity.compareTo(BigDecimal.ZERO) <= 0)
+			throw new IllegalArgumentException("A quantidade não pode ser zero ou negativo.");
+		
+		String sql = "UPDATE lots SET available_quantity = available_quantity - ? WHERE id = ? AND available_quantity >= ?";
+		
+		try(PreparedStatement pstm = conn.prepareStatement(sql)){
+			
+			pstm.setBigDecimal(1, quantity);
+			pstm.setString(2, uuid.toString());
+			pstm.setBigDecimal(3, quantity);
+
+			return pstm.executeUpdate();	
+		}
+		catch(SQLException e) {
+			throw new PersistenceException("Não foi possível atualizar o Lote.", e);
+		}
+	}
+
+	@Override
+	public int increaseAvailableQuantityForEntry(Connection conn, UUID uuid, BigDecimal quantity) {
+		String query = "UPDATE lots SET available_quantity = available_quantity + ? WHERE id = ? AND expiration_date >= CURRENT_DATE";
+		
+		try(PreparedStatement pstm = conn.prepareStatement(query)){
+			
+			pstm.setBigDecimal(1, quantity);
+			pstm.setString(2, uuid.toString());
+			
+			return pstm.executeUpdate();
+		}
+		catch(SQLException e) {
+			throw new PersistenceException("Não foi possível salvar a nova entrada.", e);
+		}
 	}
 }

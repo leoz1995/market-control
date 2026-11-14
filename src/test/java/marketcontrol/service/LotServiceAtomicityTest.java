@@ -1,0 +1,123 @@
+package marketcontrol.service;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.lang.reflect.Proxy;
+import java.math.BigDecimal;
+import java.sql.Connection;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import org.junit.jupiter.api.Test;
+
+import marketcontrol.domain.model.StockMovement;
+import marketcontrol.domain.repository.LotRepository;
+import marketcontrol.domain.repository.StockMovementRepository;
+import marketcontrol.transaction.TransactionManager;
+
+/** Service tests using fakes. They do not exercise JDBC or MariaDB transactions. */
+class LotServiceAtomicityTest {
+    @Test void passesTheSameConnectionToLotAndMovementRepositories() {
+        UUID lotId = UUID.randomUUID();
+        AtomicReference<Connection> lotConnection = new AtomicReference<>();
+        AtomicReference<Connection> movementConnection = new AtomicReference<>();
+        Connection connection = proxyConnection();
+        FakeLots lots = new FakeLots(lotId, lotConnection, 1);
+        StockMovementRepository movements = (conn, movement) -> movementConnection.set(conn);
+        StockMovementService service = new StockMovementService(work -> work.execute(connection), movements, lots);
+
+        service.registerSale(lotId, new BigDecimal("10"));
+
+        assertSame(connection, lotConnection.get());
+        assertSame(connection, movementConnection.get());
+        assertEquals(0, new BigDecimal("90").compareTo(lots.available.get()));
+    }
+
+    @Test void restoresFakeRepositoryStateWhenMovementSaveFails() {
+        UUID lotId = UUID.randomUUID();
+        AtomicReference<Connection> capturedConnection = new AtomicReference<>();
+        AtomicBoolean rollbackPath = new AtomicBoolean();
+        Connection connection = proxyConnection();
+        FakeLots lots = new FakeLots(lotId, capturedConnection, 1);
+        StockMovementRepository movements = (conn, movement) -> {
+            throw new IllegalStateException("simulated movement repository failure");
+        };
+        TransactionManager simulatedTransaction = work -> {
+            BigDecimal before = lots.available.get();
+            try {
+                work.execute(connection);
+            } catch (RuntimeException failure) {
+                lots.available.set(before);
+                rollbackPath.set(true);
+                throw failure;
+            }
+        };
+        StockMovementService service = new StockMovementService(simulatedTransaction, movements, lots);
+
+        assertThrows(IllegalStateException.class, () -> service.registerSale(lotId, new BigDecimal("10")));
+
+        assertTrue(rollbackPath.get());
+        assertEquals(0, new BigDecimal("100").compareTo(lots.available.get()));
+    }
+
+    @Test void rejectsSaleWhenLotUpdateReportsNoAffectedRow() {
+        UUID lotId = UUID.randomUUID();
+        AtomicReference<Connection> capturedConnection = new AtomicReference<>();
+        AtomicBoolean movementSaved = new AtomicBoolean();
+        FakeLots lots = new FakeLots(lotId, capturedConnection, 0);
+        StockMovementRepository movements = (conn, movement) -> movementSaved.set(true);
+        StockMovementService service = new StockMovementService(work -> work.execute(proxyConnection()), movements, lots);
+
+        assertThrows(IllegalArgumentException.class, () -> service.registerSale(lotId, BigDecimal.ONE));
+
+        assertFalse(movementSaved.get());
+        assertEquals(0, new BigDecimal("100").compareTo(lots.available.get()));
+    }
+
+    @Test void rejectsInvalidSaleBeforeExecutingTransaction() {
+        AtomicBoolean transactionStarted = new AtomicBoolean();
+        FakeLots lots = new FakeLots(UUID.randomUUID(), new AtomicReference<>(), 1);
+        StockMovementService service = new StockMovementService(work -> {
+            transactionStarted.set(true);
+            work.execute(proxyConnection());
+        }, (conn, movement) -> {}, lots);
+
+        assertThrows(IllegalArgumentException.class, () -> service.registerSale(lots.lotId, BigDecimal.ZERO));
+        assertFalse(transactionStarted.get());
+    }
+
+    private static Connection proxyConnection() {
+        return (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(), new Class<?>[] { Connection.class },
+                (proxy, method, args) -> null);
+    }
+
+    private static final class FakeLots implements LotRepository {
+        private final UUID lotId;
+        private final AtomicReference<Connection> connectionCapture;
+        private final int affectedRows;
+        private final AtomicReference<BigDecimal> available = new AtomicReference<>(new BigDecimal("100"));
+
+        private FakeLots(UUID lotId, AtomicReference<Connection> connectionCapture, int affectedRows) {
+            this.lotId = lotId;
+            this.connectionCapture = connectionCapture;
+            this.affectedRows = affectedRows;
+        }
+
+        public void save(Connection conn, marketcontrol.domain.model.Lot lot) {}
+        public Optional<marketcontrol.domain.model.Lot> findById(UUID id) { return Optional.empty(); }
+        public List<marketcontrol.domain.model.Lot> findByProductId(UUID productId) { return List.of(); }
+        public BigDecimal getTotalAvailableQuantity(UUID productId) { return available.get(); }
+
+        public int decreaseAvailableQuantityForSale(Connection conn, UUID id, BigDecimal quantity) {
+            connectionCapture.set(conn);
+            if (affectedRows == 1) available.updateAndGet(value -> value.subtract(quantity));
+            return affectedRows;
+        }
+
+        public int decreaseAvailableQuantityForLoss(Connection conn, UUID id, BigDecimal quantity) { return 0; }
+        public int increaseAvailableQuantityForEntry(Connection conn, UUID id, BigDecimal quantity) { return 0; }
+    }
+}

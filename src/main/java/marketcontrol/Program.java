@@ -17,13 +17,18 @@ import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 import marketcontrol.domain.repository.CategoryRepository;
 import marketcontrol.domain.repository.LotRepository;
 import marketcontrol.domain.repository.ProductRepository;
+import marketcontrol.domain.repository.StockMovementRepository;
 import marketcontrol.dtos.ProductDTO;
 import marketcontrol.infrastructure.persistence.jdbc.JdbcCategoryRepository;
 import marketcontrol.infrastructure.persistence.jdbc.JdbcLotRepository;
 import marketcontrol.infrastructure.persistence.jdbc.JdbcProductRepository;
+import marketcontrol.infrastructure.persistence.jdbc.JdbcStockMovementRepository;
+import marketcontrol.infrastructure.persistence.jdbc.JdbcTransactionManager;
 import marketcontrol.service.CategoryService;
 import marketcontrol.service.LotService;
 import marketcontrol.service.ProductService;
+import marketcontrol.service.StockMovementService;
+import marketcontrol.transaction.TransactionManager;
 
 public class Program {
 
@@ -32,7 +37,10 @@ public class Program {
 	private static final CategoryService categoryService = new CategoryService(categoryRepository);
 	private static final ProductService productService = new ProductService(productRepository, categoryService);
 	private static final LotRepository lotRepository = new JdbcLotRepository(productRepository);
-	private static final LotService lotService = new LotService(productService, lotRepository);
+	private static final StockMovementRepository stockMovementRepository = new JdbcStockMovementRepository();
+	private static final TransactionManager transactionManager = new JdbcTransactionManager();
+	private static final StockMovementService stockMovementService = new StockMovementService(transactionManager, stockMovementRepository, lotRepository);
+	private static final LotService lotService = new LotService(productService, lotRepository, transactionManager, stockMovementService);
 
 	public static void main(String[] args) {
 		try (Scanner sc = new Scanner(System.in)){

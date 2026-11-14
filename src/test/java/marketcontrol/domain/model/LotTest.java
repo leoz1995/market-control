@@ -7,336 +7,116 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.Month;
-import marketcontrol.domain.model.enums.UnitOfMeasure;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
-public class LotTest {
-	final Category cat = Category.create("Grãos", "Melhores grãos", true);
-	final Product p = Product.create("Feijão", "12345678900A", "Enlatados", cat, UnitOfMeasure.UNIT);
-	
-	@Test
-	void shouldCreateLotWithValidData() {
-	    BigDecimal initialQuantity = new BigDecimal("10000");
+import marketcontrol.domain.model.enums.UnitOfMeasure;
 
-	    final LocalDate entryDate = LocalDate.now();
-	    final LocalDate expirationDate = LocalDate.of(2026, Month.DECEMBER, 17);
+class LotTest {
+    private final Category category = Category.create("Grãos", "Melhores grãos", true);
+    private final Product product = Product.create("Feijão", "12345678900A", "Enlatados", category, UnitOfMeasure.UNIT);
 
-	    Lot lot = Lot.create(
-	        p,
-	        entryDate,
-	        expirationDate,
-	        initialQuantity
-	    );
+    @Test void createsLotWithValidData() {
+        Lot lot = Lot.create(product, LocalDate.now(), LocalDate.now().plusDays(30), new BigDecimal("100"));
+        assertNotNull(lot.getId());
+        assertEquals(0, new BigDecimal("100").compareTo(lot.getInitialQuantity()));
+        assertEquals(0, new BigDecimal("100").compareTo(lot.getAvailableQuantity()));
+    }
 
-	    assertNotNull(lot);
-	    assertEquals(
-	    	    0,
-	    	    initialQuantity.compareTo(lot.getAvailableQuantity())
-	    	);
-	}
+    @Test void rejectsNullProduct() {
+        assertThrows(IllegalArgumentException.class, () -> Lot.create(null, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE));
+    }
 
-	@Test
-	void shouldNotCreateLotWithoutProduct() {
-	    BigDecimal initialQuantity = new BigDecimal("10000");
+    @Test void rejectsNullEntryDate() {
+        assertThrows(IllegalArgumentException.class, () -> Lot.create(product, null, LocalDate.now().plusDays(1), BigDecimal.ONE));
+    }
 
-	    final LocalDate entryDate = LocalDate.now();
-	    final LocalDate expirationDate = LocalDate.of(2026, Month.DECEMBER, 17);
+    @Test void rejectsNullExpirationDate() {
+        assertThrows(IllegalArgumentException.class, () -> Lot.create(product, LocalDate.now(), null, BigDecimal.ONE));
+    }
 
-	    assertThrows(
-	        IllegalArgumentException.class,
-	        () -> Lot.create(
-	            null,
-	            entryDate,
-	            expirationDate,
-	            initialQuantity
-	        )
-	    );
-	}
-	
-	@Test
-	void shouldNotCreateLotWithoutEntryDate() {
-	    BigDecimal initialQuantity = new BigDecimal("10000");
+    @Test void rejectsNullInitialQuantity() {
+        assertThrows(IllegalArgumentException.class, () -> Lot.create(product, LocalDate.now(), LocalDate.now().plusDays(1), null));
+    }
 
-	    final LocalDate expirationDate = LocalDate.of(2026, Month.DECEMBER, 17);
+    @Test void rejectsZeroInitialQuantity() {
+        assertThrows(IllegalArgumentException.class, () -> Lot.create(product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ZERO));
+    }
 
-	    assertThrows(
-	        IllegalArgumentException.class,
-	        () -> Lot.create(
-	            p,
-	            null,
-	            expirationDate,
-	            initialQuantity
-	        )
-	    );
-	}
+    @Test void rejectsNegativeInitialQuantity() {
+        assertThrows(IllegalArgumentException.class, () -> Lot.create(product, LocalDate.now(), LocalDate.now().plusDays(1), new BigDecimal("-1")));
+    }
 
-	@Test
-	void shouldNotCreateLotWithoutExpirationDate() {
-	    BigDecimal initialQuantity = new BigDecimal("10000");
+    @Test void rejectsExpirationBeforeEntry() {
+        LocalDate today = LocalDate.now();
+        assertThrows(IllegalArgumentException.class, () -> Lot.create(product, today, today.minusDays(1), BigDecimal.ONE));
+    }
 
-	    final LocalDate entryDate = LocalDate.now();
+    @Test void rejectsEntryDateInFuture() {
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+        assertThrows(IllegalArgumentException.class, () -> Lot.create(product, tomorrow, tomorrow, BigDecimal.ONE));
+    }
 
-	    assertThrows(
-	        IllegalArgumentException.class,
-	        () -> Lot.create(
-	            p,
-	            entryDate,
-	            null,
-	            initialQuantity
-	        )
-	    );
-	}
-	
-	@Test
-	void shouldNotCreateLotWithNullInitialQuantity() {
-	    final LocalDate entryDate = LocalDate.now();
-	    final LocalDate expirationDate = LocalDate.of(2026, Month.DECEMBER, 17);
+    @Test void allowsExpirationOnEntryDate() {
+        LocalDate today = LocalDate.now();
+        assertNotNull(Lot.create(product, today, today, BigDecimal.ONE));
+    }
 
-	    assertThrows(
-	        IllegalArgumentException.class,
-	        () -> Lot.create(
-	            p,
-	            entryDate,
-	            expirationDate,
-	            null
-	        )
-	    );
-	}
+    @Test void reconstitutesPersistedLotAndAvailableQuantity() {
+        UUID id = UUID.randomUUID();
+        Lot lot = Lot.reconstitute(id, product, LocalDate.now().minusDays(2), LocalDate.now().plusDays(10),
+                new BigDecimal("100"), new BigDecimal("42"));
+        assertEquals(id, lot.getId());
+        assertEquals(0, new BigDecimal("42").compareTo(lot.getAvailableQuantity()));
+        assertEquals(0, new BigDecimal("100").compareTo(lot.getInitialQuantity()));
+    }
 
-	@Test
-	void shouldNotCreateLotWithoutInitialQuantityZero() {
-	    BigDecimal initialQuantity = new BigDecimal("0");
+    @Test void rejectsNullIdDuringReconstitution() {
+        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(null, product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE, BigDecimal.ONE));
+    }
 
-	    final LocalDate entryDate = LocalDate.now();
-	    final LocalDate expirationDate = LocalDate.of(2026, Month.DECEMBER, 17);
+    @Test void rejectsNullProductDuringReconstitution() {
+        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), null, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE, BigDecimal.ONE));
+    }
 
-	    assertThrows(
-	        IllegalArgumentException.class,
-	        () -> Lot.create(
-	            p,
-	            entryDate,
-	            expirationDate,
-	            initialQuantity
-	        )
-	    );
-	    
-	}
+    @Test void rejectsNullEntryDateDuringReconstitution() {
+        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, null, LocalDate.now().plusDays(1), BigDecimal.ONE, BigDecimal.ONE));
+    }
 
-	@Test
-	void shouldNotCreateLotWithoutInitialQuantityNegative() {
-	    BigDecimal initialQuantity = new BigDecimal("-10");
+    @Test void rejectsNullExpirationDateDuringReconstitution() {
+        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), null, BigDecimal.ONE, BigDecimal.ONE));
+    }
 
-	    final LocalDate entryDate = LocalDate.now();
-	    final LocalDate expirationDate = LocalDate.of(2026, Month.DECEMBER, 17);
+    @Test void rejectsExpirationBeforeEntryDuringReconstitution() {
+        LocalDate today = LocalDate.now();
+        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, today, today.minusDays(1), BigDecimal.ONE, BigDecimal.ONE));
+    }
 
-	    assertThrows(
-	        IllegalArgumentException.class,
-	        () -> Lot.create(
-	            p,
-	            entryDate,
-	            expirationDate,
-	            initialQuantity
-	        )
-	    );
-	}
-	
-	@Test
-	void shouldNotCreateLotWhenExpirationDateIsBeforeEntryDate() {
-	    BigDecimal initialQuantity = new BigDecimal("1000");
+    @Test void rejectsNullInitialQuantityDuringReconstitution() {
+        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), LocalDate.now().plusDays(1), null, BigDecimal.ZERO));
+    }
 
-	    final LocalDate entryDate = LocalDate.now();
-	    final LocalDate expirationDate = LocalDate.of(2025, Month.DECEMBER, 17);
+    @Test void rejectsNullAvailableQuantityDuringReconstitution() {
+        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE, null));
+    }
 
-	    assertThrows(
-	        IllegalArgumentException.class,
-	        () -> Lot.create(
-	            p,
-	            entryDate,
-	            expirationDate,
-	            initialQuantity
-	        )
-	    );
-	    
-	}
-	
-	@Test
-	void shouldConsumeAvailableQuantity() {
-	    BigDecimal initialQuantity = new BigDecimal("100");
+    @Test void rejectsNegativeAvailableQuantityDuringReconstitution() {
+        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE, new BigDecimal("-1")));
+    }
 
-	    Lot lot = Lot.create(
-	        p,
-	        LocalDate.now(),
-	        LocalDate.now().plusDays(30),
-	        initialQuantity
-	    );
+    @Test void rejectsAvailableQuantityAboveInitialDuringReconstitution() {
+        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE, new BigDecimal("2")));
+    }
 
-	    lot.consume(new BigDecimal("30"));
+    @Test void rejectsNonPositiveInitialQuantityDuringReconstitution() {
+        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ZERO, BigDecimal.ZERO));
+    }
 
-	    assertEquals(
-	        0,
-	        lot.getAvailableQuantity().compareTo(new BigDecimal("70"))
-	    );
-	}
-	
-	@Test
-	void shouldInitializeAvailableQuantityWithInitialQuantity() {
-	    BigDecimal initialQuantity = new BigDecimal("100.00");
-
-	    Lot lot = Lot.create(
-	        p,
-	        LocalDate.now(),
-	        LocalDate.now().plusDays(30),
-	        initialQuantity
-	    );
-
-	    assertEquals(
-	        0,
-	        initialQuantity.compareTo(lot.getAvailableQuantity())
-	    );
-	}
-	
-	@Test
-	void shouldConsumeFractionalQuantity() {
-	    BigDecimal initialQuantity = new BigDecimal("100.00");
-	    BigDecimal consume = new BigDecimal("85.3");
-
-	    Lot lot = Lot.create(
-	        p,
-	        LocalDate.now(),
-	        LocalDate.now().plusDays(30),
-	        initialQuantity
-	    );
-	    lot.consume(consume);
-	    
-	    assertEquals(
-	        initialQuantity.subtract(consume),
-	        lot.getAvailableQuantity()
-	    );
-	}
-
-	@Test
-	void shouldConsumeAllAvailableQuantity() {
-	    BigDecimal initialQuantity = new BigDecimal("100.00");
-	    BigDecimal consume = new BigDecimal("100.0");
-
-	    Lot lot = Lot.create(
-	        p,
-	        LocalDate.now(),
-	        LocalDate.now().plusDays(30),
-	        initialQuantity
-	    );
-	    lot.consume(consume);
-	    
-	    assertEquals(
-	        initialQuantity.subtract(consume),
-	        lot.getAvailableQuantity()
-	    );
-	}
-
-	@Test
-	void shouldRejectConsumptionGreaterThanAvailableQuantity() {
-	    BigDecimal initialQuantity = new BigDecimal("100.00");
-	    BigDecimal consume = new BigDecimal("110.0");
-	    
-	    Lot lot = Lot.create(
-	        p,
-	        LocalDate.now(),
-	        LocalDate.now().plusDays(30),
-	        initialQuantity
-	    );
-	    
-	    assertThrows(
-		        IllegalArgumentException.class,
-		        () -> lot.consume(
-		            consume
-		        )
-		    );
-	    
-	    assertEquals(
-		        initialQuantity,
-		        lot.getAvailableQuantity()
-		    );
-	}
-	
-	@Test
-	void shouldRejectNullConsumption() {
-	    BigDecimal initialQuantity = new BigDecimal("100.00");
-	    
-	    Lot lot = Lot.create(
-	        p,
-	        LocalDate.now(),
-	        LocalDate.now().plusDays(30),
-	        initialQuantity
-	    );
-	    assertThrows(
-		        IllegalArgumentException.class,
-		        () -> lot.consume(
-		            null
-		        )
-		    );
-	}
-
-	@Test
-	void shouldRejectZeroConsumption() {
-	    BigDecimal initialQuantity = new BigDecimal("100.00");
-	    
-	    Lot lot = Lot.create(
-	        p,
-	        LocalDate.now(),
-	        LocalDate.now().plusDays(30),
-	        initialQuantity
-	    );
-	    assertThrows(
-		        IllegalArgumentException.class,
-		        () -> lot.consume(
-		            BigDecimal.ZERO
-		        )
-		    );
-	}
-
-	@Test
-	void shouldRejectNegativeConsumption() {
-	    BigDecimal initialQuantity = new BigDecimal("100.00");
-	    
-	    Lot lot = Lot.create(
-	        p,
-	        LocalDate.now(),
-	        LocalDate.now().plusDays(30),
-	        initialQuantity
-	    );
-	    assertThrows(
-		        IllegalArgumentException.class,
-		        () -> lot.consume(
-		        		new BigDecimal("-10.00")
-		        )
-		    );
-	}
-	
-	@Test
-	void shouldVerifyExpiredLot() {
-	    BigDecimal initialQuantity = new BigDecimal("100.00");
-	    
-	    Lot lot = Lot.create(
-	        p,
-	        LocalDate.of(2026, 10, 1),
-	        LocalDate.of(2026, 10, 7),
-	        initialQuantity
-	    );
-	    
-	    assertThrows(
-		        IllegalArgumentException.class,
-		        () -> lot.consume(
-		        		new BigDecimal("10.00")
-		        )
-		    );
-	    
-	    assertTrue(
-		        lot.isExpired()
-		    );
-	    
-	    assertEquals(0, lot.getAvailableQuantity().compareTo(initialQuantity));
-	    
-	}
+    @Test void reportsExpiredOnlyWhenExpirationIsBeforeToday() {
+        Lot expired = Lot.create(product, LocalDate.now().minusDays(2), LocalDate.now().minusDays(1), BigDecimal.ONE);
+        Lot validToday = Lot.create(product, LocalDate.now(), LocalDate.now(), BigDecimal.ONE);
+        assertTrue(expired.isExpired());
+        org.junit.jupiter.api.Assertions.assertFalse(validToday.isExpired());
+    }
 }

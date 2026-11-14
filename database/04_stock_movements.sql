@@ -1,0 +1,6 @@
+CREATE TABLE stock_movements (
+	id CHAR(36) PRIMARY KEY NOT NULL,
+	type SMALLINT NOT NULL,
+	date_time DATETIME NOT NULL,
+	description VARCHAR(255) NOT NULL
+	) ENGINE = InnoDB;

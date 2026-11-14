@@ -14,7 +14,7 @@ public class Lot implements ReadOnlyLot{
 	private final LocalDate entryDate;
 	private final LocalDate expirationDate;
 	private final BigDecimal initialQuantity;
-	private BigDecimal availableQuantity;
+	private final BigDecimal availableQuantity;
 	
 	private Lot(UUID id, ReadOnlyProduct product, LocalDate entryDate, LocalDate expirationDate, BigDecimal initialQuantity, BigDecimal availableQuantity) {
 		this.id = id;
@@ -79,24 +79,11 @@ public class Lot implements ReadOnlyLot{
 
 		if(availableQuantity.compareTo(initialQuantity) > 0)
 		    throw new IllegalArgumentException("Estoque disponível não pode superar o estoque inicial.");
+		
+		if(initialQuantity.compareTo(BigDecimal.ZERO) <= 0)
+			throw new IllegalArgumentException("A quantidade de estoque inicial precisa ser maior que zero.");
 
 		return new Lot(id, product, entryDate, expirationDate, initialQuantity, availableQuantity);
-	}
-	
-	public void consume(BigDecimal quantity) {
-		if(quantity == null)
-			throw new IllegalArgumentException("A quantidade consumida é inválida.");
-		
-		if(isExpired())
-			throw new IllegalArgumentException("O lote atual é vencido.");
-
-		if(quantity.compareTo(BigDecimal.ZERO) <= 0)
-			throw new IllegalArgumentException("A quantidade solicitada é zero ou negativa.");
-		
-		if(quantity.compareTo(availableQuantity) > 0)
-			throw new IllegalArgumentException("A quantidade em estoque é menor que a venda.");
-
-		availableQuantity = availableQuantity.subtract(quantity);
 	}
 	
 	public ReadOnlyProduct getProduct() {
