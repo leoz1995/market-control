@@ -118,6 +118,6 @@ class LotServiceAtomicityTest {
         }
 
         public int decreaseAvailableQuantityForLoss(Connection conn, UUID id, BigDecimal quantity) { return 0; }
-        public int increaseAvailableQuantityForEntry(Connection conn, UUID id, BigDecimal quantity) { return 0; }
+        public int increaseAvailableQuantityForAdditionalEntry(Connection conn, UUID id, BigDecimal quantity) { return 0; }
     }
 }

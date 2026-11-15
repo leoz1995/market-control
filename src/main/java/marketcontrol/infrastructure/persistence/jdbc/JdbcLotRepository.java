@@ -224,7 +224,7 @@ public class JdbcLotRepository implements LotRepository{
 	}
 
 	@Override
-	public int increaseAvailableQuantityForEntry(Connection conn, UUID uuid, BigDecimal quantity) {
+	public int increaseAvailableQuantityForAdditionalEntry(Connection conn, UUID uuid, BigDecimal quantity) {
 		String query = "UPDATE lots SET available_quantity = available_quantity + ? WHERE id = ? AND expiration_date >= CURRENT_DATE";
 		
 		try(PreparedStatement pstm = conn.prepareStatement(query)){

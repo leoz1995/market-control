@@ -1,7 +1,7 @@
 # Progresso e plano de aprendizagem — MarketControl
 
 **Responsável pelo projeto:** Leonardo Alves
-**Última revisão do código e dos testes:** 14 de novembro de 2026
+**Última revisão do código e dos testes:** 15 de novembro de 2026
 **Princípio de colaboração:** a IA atualiza testes e documentação. Leonardo Alves é quem desenvolve, decide e altera o código de produção.
 
 Este documento descreve o que foi observado nos arquivos do repositório e na última execução da suíte. Classes existentes não são tratadas como prova de um fluxo concluído: quando uma regra importante não passa por teste ou apresenta inconsistência, isso fica registrado como trabalho pendente.
@@ -10,7 +10,7 @@ Este documento descreve o que foi observado nos arquivos do repositório e na ú
 
 O MarketControl deixou de ser apenas um plano de persistência futura: a aplicação atualmente usa repositórios JDBC e MariaDB. Há modelos e serviços para categorias, produtos, lotes e movimentações. A aplicação principal ainda é um terminal simples; ainda não existe API HTTP.
 
-O fluxo de criar lote tenta registrar uma entrada inicial na mesma transação. Um teste JDBC recém-atualizado encontrou uma falha: a quantidade inicial já é gravada em `available_quantity` quando o lote é salvo, e em seguida `StockMovementService.registerEntry` soma a mesma quantidade novamente. O saldo persistido fica acima de `initial_quantity`, e a reconstituição do lote rejeita o registro. A falha permanece aberta para Leonardo analisar e corrigir.
+O fluxo de criar lote registra a quantidade inicial no lote e, na mesma transação, registra o movimento `ENTRY` e seu item. O `updt.diff` separa esse registro inicial das entradas adicionais: somente estas últimas atualizam o saldo disponível. O teste JDBC que antes reproduzia saldo duplicado foi atualizado e passou, confirmando saldo 10 para quantidade inicial 10 e lote reconstituível.
 
 ## 2. O que existe no código
 
@@ -41,7 +41,7 @@ O fluxo de criar lote tenta registrar uma entrada inicial na mesma transação. 
 
 ## 3. Execução de testes registrada
 
-Com MariaDB de testes acessível, `mvn test` compilou e executou **77 testes**:
+Com MariaDB local acessível, `mvn test` compilou e executou **77 testes em 15 de novembro de 2026**:
 
 | Classe | Total | Resultado registrado |
 |---|---:|---|
@@ -52,12 +52,12 @@ Com MariaDB de testes acessível, `mvn test` compilou e executou **77 testes**:
 | `StockMovementItemTest` | 5 | 5 aprovados |
 | `CategoryServiceTest` | 2 | 2 aprovados |
 | `ProductServiceTest` | 6 | 6 aprovados |
-| `StockMovementServiceTest` | 4 | 4 aprovados |
+| `StockMovementServiceTest` | 4 | 4 aprovados; entradas adicionais usam o novo método |
 | `LotServiceAtomicityTest` | 4 | 4 aprovados; usa fakes, não JDBC real |
-| `LotServiceTest` | 5 | 4 aprovados, 1 falhou |
-| **Total** | **77** | **76 aprovados, 1 falhou, 0 erros de execução, 0 ignorados** |
+| `LotServiceTest` | 5 | 5 aprovados; inclui integração JDBC da criação do lote |
+| **Total** | **77** | **77 aprovados, 0 falhas, 0 erros de execução, 0 ignorados** |
 
-O caso que falhou foi `LotServiceTest.lotCreationPersistsOnlyInitialQuantityAndEntryMovement`. A expectativa é que criar um lote com quantidade 10 deixe 10 disponíveis. O banco guardou 20, porque o fluxo grava a quantidade inicial e depois a soma uma segunda vez como entrada. `Lot.reconstitute` não aceita esse estado pois `available_quantity` supera `initial_quantity`.
+`LotServiceTest.lotCreationPersistsOnlyInitialQuantityAndEntryMovement` foi aprovado. O caso cria um lote com quantidade inicial 10 e verifica no MariaDB: saldo disponível 10, um movimento `ENTRY`, um item desse movimento com quantidade 10 e reconstituição do lote por `findById`. Isso cobre o sintoma de duplicação descrito anteriormente.
 
 Os testes de venda e falha de repositório usam JDBC real no `LotServiceTest`: a falha é injetada no repositório de movimentação ou no método de atualização de lote, enquanto o `JdbcTransactionManager` e a conexão MariaDB são reais. Os testes de `LotServiceAtomicityTest` e `StockMovementServiceTest` usam repositórios/transação/conexão simulados; provam delegação e identidade de conexão no serviço, mas não rollback real do MariaDB.
 
@@ -65,15 +65,15 @@ Essa execução é uma fotografia do estado observado; qualquer mudança no banc
 
 ## 4. Falhas e riscos conhecidos a discutir
 
-### Saldo inicial duplicado na criação do lote
+### Saldo inicial duplicado na criação do lote — corrigido no diff em avaliação
 
 1. `Lot.create` inicializa `availableQuantity` com `initialQuantity`.
-2. `LotService.save` chama `lotRepository.save(conn, lot)`, que persiste o saldo inicial.
-3. Ainda na transação, `LotService.save` chama `stockMovementService.registerEntry` com `initialQuantity`.
-4. A operação SQL de entrada adiciona esse valor ao saldo já gravado.
-5. O banco fica inconsistente com o invariante aplicado em `Lot.reconstitute`.
+2. `LotService.save` persiste o lote e chama `registerInitialEntry(conn, lot)` na mesma transação.
+3. `registerInitialEntry` grava apenas o movimento e o item `ENTRY`; não soma novamente o saldo.
+4. `registerAdditionalEntry` mantém o caminho separado para entradas posteriores e usa `increaseAvailableQuantityForAdditionalEntry`.
+5. A integração JDBC confirmou que o lote permanece consistente e pode ser reconstituído.
 
-Evidências: falha acima e asserção de que a reconstituição rejeita o registro salvo. Nenhuma correção foi feita nesta auditoria.
+Evidência atual: `mvn -Dtest=LotServiceTest test` — 5 testes aprovados — e `mvn test` — 77 aprovados, sem falhas/erros/ignorados, em 15/11/2026. O diff de produção foi fornecido pelo responsável; nesta colaboração foram alterados somente testes e documentação. A conclusão cobre o caminho de criação inicial testado; entrada adicional ainda não possui integração JDBC dedicada.
 
 ### Testes e atomicidade
 
@@ -81,7 +81,7 @@ Evidências: falha acima e asserção de que a reconstituição rejeita o regist
 - O teste de falha no update confirma que o movimento de saída não é persistido.
 - Não há teste determinístico de falha durante `commit()` ou durante `rollback()`, nem de exceção suprimida do rollback.
 - Não há teste de concorrência para duas vendas simultâneas do mesmo lote.
-- O rollback da entrada inicial quando a gravação da movimentação falha ainda pode ser coberto melhor em integração; o fluxo de criação atualmente já falha pelo saldo dobrado.
+- O rollback da entrada inicial quando a gravação da movimentação falha ainda pode ser coberto melhor em integração.
 
 ### Regras abertas
 
@@ -96,9 +96,9 @@ Percentuais são estimativas de avanço contra critérios de conclusão, definid
 | Etapa | Avanço | Critério usado e o que falta |
 |---|---:|---|
 | 1. Domínio e serviços em Java puro | **65%** | Há categorias, produtos, lotes e movimentos, com serviços. Falta fechar regras, corrigir o saldo de entrada, implementar seleção multi-lote/FEFO, ajustes, fornecedores e decisões de validade. |
-| 2. Persistência MariaDB/JDBC | **70%** | Esquema, repositórios JDBC e gerenciador de transações existem. Ainda é necessário garantir consistência ponta a ponta, cobrir erro SQL/commit/rollback e tratar a entrada duplicada. |
+| 2. Persistência MariaDB/JDBC | **70%** | Esquema, repositórios JDBC e gerenciador de transações existem. Ainda é necessário garantir consistência ponta a ponta e cobrir erro SQL/commit/rollback, entrada adicional e rollback da entrada inicial. |
 | 3. Terminal operacional | **45%** | Cadastro e consultas essenciais estão no menu. Ainda não há fluxos de venda, perda, ajuste, histórico ou operação completa para o mercado. |
-| 4. Qualidade e testes | **60%** | Há 77 testes e integração real; a execução registrada tem 1 falha, e permanecem lacunas de concorrência e de falhas de commit/rollback. |
+| 4. Qualidade e testes | **65%** | Há 77 testes e integração real; a execução registrada está verde, mas permanecem lacunas de concorrência e de falhas de commit/rollback. |
 | 5. API HTTP em Java puro | **0%** | Não há servidor HTTP, rotas, DTOs de transporte, validação da fronteira ou testes HTTP. É a próxima grande etapa após consolidar regras e JDBC. |
 | 6. Front-end Angular com IA | **0%** | Ainda não existe aplicação Angular. Planejado depois de uma API estável; a integração e as decisões de produto continuam sob responsabilidade de Leonardo. |
 | 7. Spring Boot v2 | **0%** | É uma migração futura para estudo comparativo, depois da v1 Java puro + HTTP e da experiência com Angular. Não antecipar framework na etapa atual. |
@@ -129,13 +129,11 @@ Os números não são somados nem convertidos em uma média geral: HTTP, Angular
 
 ## 7. Próximos passos de aprendizagem
 
-1. Leonardo analisa a falha de duplicação na entrada e decide a regra correta de criação do lote.
-2. Atualizar a expectativa de integração após a decisão e comprovar saldo inicial, movimento `ENTRY` e item correspondentes.
-3. Adicionar testes JDBC para entrada com falha e perdas conforme a política escolhida.
-4. Testar erros SQL, commit/rollback, isolamento e concorrência com estratégia determinística.
-5. Completar fluxos de terminal e histórico conforme os requisitos aceitos.
-6. Só então definir e implementar a API HTTP em Java puro.
-7. Integrar Angular depois que contratos e fluxos HTTP estiverem estáveis.
-8. Planejar a migração Spring Boot v2 como estudo separado, preservando testes de comportamento.
+1. Adicionar teste JDBC de entrada adicional e rollback da entrada inicial quando a gravação do movimento falha.
+2. Testar perdas, erros SQL, commit/rollback, isolamento e concorrência com estratégia determinística.
+3. Completar fluxos de terminal e histórico conforme os requisitos aceitos.
+4. Só então definir e implementar a API HTTP em Java puro.
+5. Integrar Angular depois que contratos e fluxos HTTP estiverem estáveis.
+6. Planejar a migração Spring Boot v2 como estudo separado, preservando testes de comportamento.
 
 Detalhamento funcional e decisões em aberto estão em [requirements.md](requirements.md); a visão geral está no [README](../README.md).

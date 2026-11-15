@@ -47,7 +47,7 @@ public class LotService{
 
 		transactionManager.execute(conn ->{
 			lotRepository.save(conn, lot);
-			stockMovementService.registerEntry(conn, lot.getId(), initialQuantity);			
+			stockMovementService.registerInitialEntry(conn, lot);			
 		});
 		
 		return lot;	

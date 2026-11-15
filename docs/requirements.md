@@ -1,7 +1,7 @@
 # MarketControl — requisitos, estado funcional e roadmap
 
 **Responsável e autor das decisões de implementação:** Leonardo Alves
-**Revisão:** 14 de novembro de 2026
+**Revisão:** 15 de novembro de 2026
 **Estado:** projeto Java puro em desenvolvimento, com domínio, serviços, terminal, MariaDB/JDBC e movimentos parciais. Não existe API HTTP nem front-end Angular.
 
 Este documento separa três coisas: comportamento que existe no código, comportamento confirmado por teste e objetivo ainda planejado. A presença de uma classe ou método não basta para marcar um requisito como concluído. Na colaboração atual, a IA atualiza documentação e testes; o código de produção é desenvolvido e alterado por Leonardo Alves.
@@ -34,8 +34,8 @@ Os perfis futuros são administrador e operador de estoque. Cadastro, autentica�
 | RF03 | Ativar/desativar produto | Planejado: `Product` não possui estado ativo. |
 | RF04 | Cadastrar e editar categorias | Parcial: domínio, serviço, JDBC e interface de terminal para cadastro existem; ampliar operações de terminal e regras de categoria inativa. |
 | RF05 | Cadastrar fornecedores | Planejado: não há modelo, serviço, tabela nem relação com lote. |
-| RF06 | Registrar entrada inicial de mercadoria | Parcial com falha: `LotService.save` salva lote e chama entrada na mesma transação, mas o saldo inicial é contado duas vezes no código observado. |
-| RF07 | Cadastrar lotes e validade | Parcial: lote JDBC, datas e quantidades existem. A entrada duplicada pode gravar saldo inválido que não pode ser reconstituído por `Lot`. |
+| RF06 | Registrar entrada inicial de mercadoria | Parcial: `LotService.save` salva lote e movimento/item `ENTRY` na mesma transação. O teste JDBC atualizado confirma que o saldo inicial não é contado duas vezes; rollback por falha ao gravar o movimento ainda merece teste de integração dedicado. |
+| RF07 | Cadastrar lotes e validade | Parcial: lote JDBC, datas e quantidades existem. O teste de criação confirma saldo consistente e reconstituição; ampliar casos de falha e entrada adicional. |
 | RF08 | Registrar venda/saída | Parcial: `StockMovementService.registerSale` opera em um lote por chamada e atualiza saldo/movimento sob transação. Faltam seleção e distribuição entre lotes e fluxo no terminal. |
 | RF09 | Consultar estoque disponível | Parcial: `JdbcLotRepository` agrega saldo de lotes com validade hoje ou futura; validação do saldo depende de lotes íntegros. |
 | RF10 | Evitar venda de lote vencido | Parcial: `Lot.isExpired` identifica validade anterior a hoje e o SQL de venda exige validade não vencida. Ampliar testes de limites e regra de timezone/data. |
@@ -85,7 +85,7 @@ Decidir e documentar: se conversões (por exemplo, kg ↔ g) serão aceitas; esc
 
 Regras atualmente implementadas no modelo: produto e datas obrigatórios; quantidade inicial maior que zero; entrada não pode ser futura; validade não pode anteceder entrada; reconstituição exige saldo não negativo e não acima do inicial; lote é vencido se validade for anterior a hoje.
 
-**Falha detectada:** na criação pelo serviço, `Lot.create` inicia saldo disponível igual ao inicial. O `LotService` salva o lote e chama entrada pelo mesmo valor; o SQL de entrada soma esse valor ao saldo. A integração reproduz saldo dobrado e falha ao reconstituir o lote. A regra esperada no teste é saldo inicial persistido uma única vez.
+**Duplicação inicial corrigida no diff em avaliação:** `Lot.create` inicia saldo disponível igual ao inicial. `LotService.save` persiste o lote e chama `registerInitialEntry`, que registra o cabeçalho e o item `ENTRY` sem atualizar novamente o saldo. O método e SQL de soma foram renomeados para representar entrada adicional (`registerAdditionalEntry` / `increaseAvailableQuantityForAdditionalEntry`). O teste JDBC de criação foi ajustado para exigir saldo 10 para lote inicial de 10, movimento e item únicos com quantidade 10 e sucesso de `findById`.
 
 Decisões pendentes: status “vence em breve” (proposta anterior: até sete dias, inclusive); tratamento físico de vencidos; registro de lote do fornecedor/fabricação/custo; quantidade zero em consulta/alerta.
 
@@ -95,7 +95,7 @@ Decisões pendentes: status “vence em breve” (proposta anterior: até sete d
 
 O `StockMovementService` implementa entrada, venda e perda. Venda/perda envolvem atualização condicional de saldo e gravação do movimento dentro de `TransactionManager.execute`. Entrada recebe `Connection`; no caminho `LotService.save`, o chamador abre a transação para gravar lote e entrada em conjunto.
 
-Ainda precisa ser definido/testado: quais lotes podem receber perda (somente vencido ou avaria também); ajustes e reversões; histórico consultável; atomicidade sob falha de item parcial; concorrência; comportamento de commit indeterminado e falha de rollback. O rollback da conexão não restaura atributos de entidades Java já mutadas; o modelo atual de `Lot` é imutável, mas isso não elimina a inconsistência dos dados persistidos descrita na criação.
+Ainda precisa ser definido/testado: quais lotes podem receber perda (somente vencido ou avaria também); ajustes e reversões; histórico consultável; atomicidade sob falha de item parcial; concorrência; comportamento de commit indeterminado e falha de rollback. O rollback da conexão não restaura atributos de entidades Java já mutadas; o modelo atual de `Lot` é imutável.
 
 ### 5.5 Política futura de saída
 
@@ -125,7 +125,7 @@ Program (terminal)
 
 ## 7. Testes e evidência atual
 
-Última execução registrada em 14/11/2026: `mvn test` — **77 executados, 76 aprovados, 1 falha, nenhum ignorado**. A falha é `LotServiceTest.lotCreationPersistsOnlyInitialQuantityAndEntryMovement`, que exige saldo inicial sem duplicação. Não interpretar o estado como suíte verde.
+Última execução registrada em 15/11/2026: `mvn test` — **77 executados, 77 aprovados, nenhuma falha/erro/ignorado**. O teste de integração `LotServiceTest.lotCreationPersistsOnlyInitialQuantityAndEntryMovement` passou no MariaDB local e valida o saldo, movimento, item e reconstituição do lote. A evidência confirma a correção no caminho coberto; ainda falta teste JDBC de entrada adicional e rollback da entrada inicial.
 
 Distribuição por classe, mantida em [meu_progresso.md](meu_progresso.md). Testes com fakes verificam interação/decisões do serviço, não persistência. Testes JDBC usam conexão MariaDB e queries de verificação; cleanup remove apenas dados de teste associados à categoria do caso.
 
@@ -140,7 +140,7 @@ Os percentuais são estimativas qualitativas frente aos critérios desta seção
 | Núcleo Java puro: domínio e serviços | **65%** | Regras aceitas, invariantes e fluxos de estoque concluídos, incluindo entrada correta, perda/ajuste e saída multi-lote testadas. |
 | MariaDB/JDBC e transações | **70%** | Persistência completa, consistência/integridade, falhas de SQL, commit/rollback e concorrência comprovados por integração. |
 | Terminal | **45%** | Operador percorre cadastro, entrada, venda, perda, ajuste e histórico com erros recuperáveis. |
-| Testes/confiabilidade | **60%** | Suíte aprovada, integração segura/repetível e cenários críticos cobertos; atualmente há uma falha conhecida. |
+| Testes/confiabilidade | **65%** | Suíte aprovada e integração repetível; permanecem cenários críticos a cobrir, como entrada adicional, concorrência e falhas de commit/rollback. |
 | API HTTP Java puro | **0%** | Rotas e contratos documentados; validação, status e erros testados; sem dependência de Spring. |
 | Front-end Angular (plano de IA) | **0%** | Aplicação Angular, integração com HTTP e testes de interface ainda não existem. |
 | Spring Boot v2 | **0%** | Migração comparativa posterior à v1, protegida por testes de comportamento. |
@@ -153,7 +153,7 @@ Não há porcentagem agregada do projeto: etapas HTTP, Angular e Spring não com
 
 - Definir regras de negócio com Leonardo antes de assumir comportamento novo.
 - Manter domínio e casos de uso desacoplados de terminal, HTTP e JDBC.
-- Corrigir a duplicação inicial e provar em MariaDB que lote, saldo, cabeçalho e item correspondem.
+- Manter a criação inicial sem duplicação e provar em MariaDB que lote, saldo, cabeçalho e item correspondem; ampliar a evidência para rollback e entrada adicional.
 - Manter todas as operações compostas atômicas; testar sucesso, falha de repositório, erro de SQL e estado depois da falha.
 - Completar operação multi-lote segundo política escolhida e tratar concorrência.
 - Implementar API HTTP Java puro sem framework; documentar endpoints, validações, erros e exemplos.

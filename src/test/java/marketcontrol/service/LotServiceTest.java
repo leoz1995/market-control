@@ -68,8 +68,10 @@ class LotServiceTest {
                         "Creating a lot with 10 units should persist 10 units, not count the initial quantity twice"),
                 () -> assertEquals(1, movementCountForLotAndType(lot.getId(), MovementType.ENTRY.getCode())),
                 () -> assertEquals(1, movementItemCountForLotAndType(lot.getId(), MovementType.ENTRY.getCode())),
-                () -> assertThrows(IllegalArgumentException.class, () -> lots.findById(lot.getId()),
-                        "A persisted available quantity above the initial quantity violates Lot.reconstitute"));
+                () -> assertEquals(0, new BigDecimal("10.000").compareTo(
+                        movementItemQuantityForLotAndType(lot.getId(), MovementType.ENTRY.getCode()))),
+                () -> assertEquals(0, new BigDecimal("10.000").compareTo(lots.findById(lot.getId()).getAvailableQuantity()),
+                        "The persisted lot should be reconstitutable with its initial quantity"));
     }
 
     @Test void saleUpdatesPersistedStockAndWritesExitMovement() {
@@ -136,6 +138,22 @@ class LotServiceTest {
         return count("SELECT COUNT(*) FROM stock_movement_items smi "
                 + "JOIN stock_movements sm ON sm.id = smi.stock_movement_id "
                 + "WHERE smi.lot_id = ? AND sm.type = ?", lotId, movementType);
+    }
+
+    private BigDecimal movementItemQuantityForLotAndType(UUID lotId, int movementType) {
+        String sql = "SELECT smi.quantity FROM stock_movement_items smi "
+                + "JOIN stock_movements sm ON sm.id = smi.stock_movement_id "
+                + "WHERE smi.lot_id = ? AND sm.type = ?";
+        try (Connection connection = DatabaseConnection.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, lotId.toString());
+            statement.setInt(2, movementType);
+            try (ResultSet result = statement.executeQuery()) {
+                if (!result.next()) throw new AssertionError("Entry movement item not found in integration database");
+                return result.getBigDecimal(1);
+            }
+        } catch (SQLException e) {
+            throw new AssertionError("Could not read persisted movement item quantity", e);
+        }
     }
 
     private BigDecimal persistedQuantity(UUID lotId) {

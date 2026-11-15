@@ -16,5 +16,5 @@ public interface LotRepository {
 	BigDecimal getTotalAvailableQuantity(UUID productId);
 	int decreaseAvailableQuantityForSale(Connection conn, UUID uuid, BigDecimal quantity);
 	int decreaseAvailableQuantityForLoss(Connection conn, UUID uuid, BigDecimal quantity);
-	int increaseAvailableQuantityForEntry(Connection conn, UUID uuid, BigDecimal quantity);
+	int increaseAvailableQuantityForAdditionalEntry(Connection conn, UUID uuid, BigDecimal quantity);
 }

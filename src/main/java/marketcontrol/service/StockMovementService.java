@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+import marketcontrol.domain.model.Lot;
 import marketcontrol.domain.model.StockMovement;
 import marketcontrol.domain.model.StockMovementItem;
 import marketcontrol.domain.model.enums.MovementType;
@@ -35,13 +36,26 @@ public class StockMovementService {
 		this.lotRepository = lotRepository;
 	}
 	
-	public void registerEntry(Connection conn, UUID lotId, BigDecimal quantity) {
+	public void registerInitialEntry(Connection conn, Lot lot) {
+	    if (conn == null)
+	        throw new IllegalArgumentException("Conexão inválida.");
+
+	    if (lot == null)
+	        throw new IllegalArgumentException("O lote não pode ser nulo.");
+
+		StockMovement stockMovement = StockMovement.create(MovementType.ENTRY, LocalDateTime.now(),
+				"Entrada inicial do lote.", List.of(StockMovementItem.create(lot.getId(), lot.getInitialQuantity())));
+		
+		stockMovementRepository.save(conn, stockMovement);
+	}
+	
+	public void registerAdditionalEntry(Connection conn, UUID lotId, BigDecimal quantity) {
 		check(lotId, quantity);
 
 		StockMovement stockMovement = StockMovement.create(MovementType.ENTRY, LocalDateTime.now(),
 				"Novo produto cadastrado.", List.of(StockMovementItem.create(lotId, quantity)));
 
-		int affectedRows = lotRepository.increaseAvailableQuantityForEntry(conn, lotId, quantity);
+		int affectedRows = lotRepository.increaseAvailableQuantityForAdditionalEntry(conn, lotId, quantity);
 
 		if (affectedRows == 1)
 			stockMovementRepository.save(conn, stockMovement);

@@ -19,7 +19,7 @@ import marketcontrol.domain.repository.LotRepository;
 import marketcontrol.domain.repository.StockMovementRepository;
 
 class StockMovementServiceTest {
-    @Test void entryUpdatesLotAndSavesEntryMovementOnCallerConnection() {
+    @Test void additionalEntryUpdatesLotAndSavesEntryMovementOnCallerConnection() {
         UUID lotId = UUID.randomUUID();
         Connection connection = proxyConnection();
         FakeLots lots = new FakeLots(1);
@@ -30,7 +30,7 @@ class StockMovementServiceTest {
         StockMovementRepository movements = (conn, movement) -> { savedOn.set(conn); savedMovement.set(movement); };
         StockMovementService service = new StockMovementService(work -> work.execute(proxyConnection()), movements, lots);
 
-        service.registerEntry(connection, lotId, new BigDecimal("5"));
+        service.registerAdditionalEntry(connection, lotId, new BigDecimal("5"));
 
         assertSame(connection, updatedOn.get());
         assertSame(connection, savedOn.get());
@@ -39,14 +39,14 @@ class StockMovementServiceTest {
         assertEquals(0, new BigDecimal("5").compareTo(savedMovement.get().getItems().getFirst().getQuantity()));
     }
 
-    @Test void entryDoesNotSaveMovementWhenLotUpdateAffectsNoRows() {
+    @Test void additionalEntryDoesNotSaveMovementWhenLotUpdateAffectsNoRows() {
         FakeLots lots = new FakeLots(0);
         AtomicReference<StockMovement> savedMovement = new AtomicReference<>();
         StockMovementService service = new StockMovementService(work -> work.execute(proxyConnection()),
                 (conn, movement) -> savedMovement.set(movement), lots);
 
         assertThrows(IllegalArgumentException.class,
-                () -> service.registerEntry(proxyConnection(), UUID.randomUUID(), BigDecimal.ONE));
+                () -> service.registerAdditionalEntry(proxyConnection(), UUID.randomUUID(), BigDecimal.ONE));
         assertNull(savedMovement.get());
     }
 
@@ -97,6 +97,6 @@ class StockMovementServiceTest {
         public BigDecimal getTotalAvailableQuantity(UUID productId) { return BigDecimal.ZERO; }
         public int decreaseAvailableQuantityForSale(Connection conn, UUID id, BigDecimal quantity) { if (connectionSeen != null) connectionSeen.set(conn); return affectedRows; }
         public int decreaseAvailableQuantityForLoss(Connection conn, UUID id, BigDecimal quantity) { if (connectionSeen != null) connectionSeen.set(conn); return affectedRows; }
-        public int increaseAvailableQuantityForEntry(Connection conn, UUID id, BigDecimal quantity) { if (connectionSeen != null) connectionSeen.set(conn); return affectedRows; }
+        public int increaseAvailableQuantityForAdditionalEntry(Connection conn, UUID id, BigDecimal quantity) { if (connectionSeen != null) connectionSeen.set(conn); return affectedRows; }
     }
 }
