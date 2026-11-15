@@ -14,7 +14,7 @@ O projeto já usa Java 25, Maven, MariaDB e JDBC. Existem modelos e serviços pa
 
 O terminal (`Program`) permite cadastrar/listar/buscar/editar produtos, cadastrar categorias e cadastrar/consultar lotes. A criação de lote tenta registrar uma movimentação de entrada. O serviço de estoque também contém operações de entrada, venda e perda. Ainda não há menu de terminal para venda, perda, ajuste ou consulta de histórico.
 
-**Falha observada nos testes atuais:** `LotService.save` persiste um lote com saldo disponível igual à quantidade inicial e, na mesma transação, `StockMovementService.registerEntry` incrementa novamente o saldo pela quantidade inicial. O banco fica com saldo duas vezes maior que o inicial; em seguida, `Lot.reconstitute` rejeita esse registro porque o saldo disponível supera o inicial. O teste de integração que verifica o saldo correto detecta essa falha. Nenhum código de produção foi alterado para corrigi-la.
+**Correção em avaliação no `updt.diff`:** a entrada inicial agora grava o movimento e seu item sem incrementar novamente o saldo já salvo no lote; entradas adicionais usam um fluxo separado que atualiza o saldo. O teste de integração `LotServiceTest.lotCreationPersistsOnlyInitialQuantityAndEntryMovement` passou em 15/11/2026: para quantidade inicial 10, confirmou saldo disponível 10, um movimento `ENTRY`, um item com quantidade 10 e reconstituição bem-sucedida do lote. A suíte completa também passou (77 testes). Ainda faltam testes JDBC para entrada adicional e rollback da entrada inicial.
 
 ## Funcionalidades e limites
 
