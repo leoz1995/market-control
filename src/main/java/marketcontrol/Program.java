@@ -205,7 +205,7 @@ public class Program {
 
 		System.out.println("Novo LOTE inserido: ");
 		System.out.println(save.getId() + " | " + save.getEntryDate() + " | " + save.getExpirationDate() + " | "
-				+ save.getInitialQuantity());
+				+ save.getTotalReceivedQuantity());
 	}
 
 	private static void consultLotAndStock(Scanner sc) {

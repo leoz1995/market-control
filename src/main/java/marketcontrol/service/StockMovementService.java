@@ -10,6 +10,7 @@ import marketcontrol.domain.model.Lot;
 import marketcontrol.domain.model.StockMovement;
 import marketcontrol.domain.model.StockMovementItem;
 import marketcontrol.domain.model.enums.MovementType;
+import marketcontrol.domain.model.interfaces.ReadOnlyLot;
 import marketcontrol.domain.repository.LotRepository;
 import marketcontrol.domain.repository.StockMovementRepository;
 import marketcontrol.transaction.TransactionManager;
@@ -44,25 +45,30 @@ public class StockMovementService {
 	        throw new IllegalArgumentException("O lote não pode ser nulo.");
 
 		StockMovement stockMovement = StockMovement.create(MovementType.ENTRY, LocalDateTime.now(),
-				"Entrada inicial do lote.", List.of(StockMovementItem.create(lot.getId(), lot.getInitialQuantity())));
+				"Entrada inicial do lote.", List.of(StockMovementItem.create(lot.getId(), lot.getTotalReceivedQuantity())));
 		
 		stockMovementRepository.save(conn, stockMovement);
 	}
 	
-	public void registerAdditionalEntry(Connection conn, UUID lotId, BigDecimal quantity) {
+	public ReadOnlyLot registerAdditionalEntry(UUID lotId, BigDecimal quantity) {
 		check(lotId, quantity);
 
 		StockMovement stockMovement = StockMovement.create(MovementType.ENTRY, LocalDateTime.now(),
-				"Novo produto cadastrado.", List.of(StockMovementItem.create(lotId, quantity)));
+				"Entrada adicional do lote.", List.of(StockMovementItem.create(lotId, quantity)));
+		
+		return transactionManager.executeAndReturn(conn -> {
+			int affectedRows = lotRepository.increaseAvailableQuantityForAdditionalEntry(conn, lotId, quantity);
 
-		int affectedRows = lotRepository.increaseAvailableQuantityForAdditionalEntry(conn, lotId, quantity);
+			if (affectedRows == 0)
+				throw new IllegalArgumentException("Lote inexistente, vencido ou não elegível para receber a entrada.");
 
-		if (affectedRows == 1)
+			else if (affectedRows != 1) 
+				throw new IllegalStateException("Situação inesperada na operação de entrada.");			
+
 			stockMovementRepository.save(conn, stockMovement);
-		else if (affectedRows == 0)
-			throw new IllegalArgumentException("Entrada incorreta ou data de vencimento ultrapassada.");
-		else
-			throw new IllegalStateException("Situação inesperada na operação de entrada.");
+			
+			return lotRepository.findById(conn, lotId).orElseThrow();
+		});
 	}
 	
 	public void registerSale(UUID lotId, BigDecimal quantity) {
@@ -86,7 +92,9 @@ public class StockMovementService {
 	public void registerLoss(UUID lotId, BigDecimal quantity, String lossCause) {
 		
 		if (lossCause == null || lossCause.isBlank())
-		    throw new IllegalArgumentException("A causa da perda precisa ser informada.");
+		    throw new IllegalArgumentException(
+		        "A causa da perda precisa ser informada."
+		    );
 		
 		check(lotId, quantity);
 		

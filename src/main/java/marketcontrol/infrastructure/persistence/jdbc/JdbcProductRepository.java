@@ -52,13 +52,31 @@ public class JdbcProductRepository implements ProductRepository{
 			throw new PersistenceException("Não foi possível realizar a busca dos produtos.", e);
 		}
 	}
-
+	
 	@Override
-	public Optional<Product> findById(UUID id) {
+	public Optional<Product> findProductById(UUID id) {
+		
+		if(id == null)
+			throw new IllegalArgumentException("Id null, não é possível realizar a busca.");
+
+		try(Connection conn = DatabaseConnection.getConnection())
+		{
+			return findById(conn, id);
+		}
+		catch(SQLException e) {
+			throw new PersistenceException("Não foi possível realizar a busca pelo Id do produto.", e);
+		}
+	}
+	
+	@Override
+	public Optional<Product> findById(Connection conn, UUID id) {
+		if (conn == null)
+		    throw new IllegalArgumentException("A conexão é obrigatória.");
+		
 		if(id == null)
 			throw new IllegalArgumentException("Id null, não é possível realizar a busca.");
 		
-		String sql = """
+		String query = """
 				SELECT
 			    p.id,
 			    p.name,
@@ -73,8 +91,8 @@ public class JdbcProductRepository implements ProductRepository{
 			INNER JOIN categories c ON c.id = p.category_id
 			WHERE p.id = ?;
 				""";
-		try(Connection conn = DatabaseConnection.getConnection();
-				PreparedStatement pstm = conn.prepareStatement(sql))
+		
+		try(PreparedStatement pstm = conn.prepareStatement(query))
 		{
 			pstm.setString(1, id.toString());
 

@@ -14,6 +14,7 @@ import java.util.UUID;
 
 import marketcontrol.domain.model.Lot;
 import marketcontrol.domain.model.Product;
+import marketcontrol.domain.model.interfaces.ReadOnlyLot;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 import marketcontrol.domain.repository.LotRepository;
 import marketcontrol.domain.repository.ProductRepository;
@@ -34,10 +35,13 @@ public class JdbcLotRepository implements LotRepository{
 	@Override
 	public void save(Connection conn, Lot lot) {
 		
+		if(conn == null)
+			throw new IllegalArgumentException("A conexão é obrigatória.");
+		
 		if(lot == null)
 			throw new IllegalArgumentException("O lote não pode ser null.");
 		
-		String sql = "INSERT INTO lots (id, product_id, entry_date, expiration_date, initial_quantity, available_quantity) VALUES (?, ?, ?, ?, ?, ?)";
+		String sql = "INSERT INTO lots (id, product_id, entry_date, expiration_date, total_received_quantity, available_quantity) VALUES (?, ?, ?, ?, ?, ?)";
 		
 		try(PreparedStatement pstm = conn.prepareStatement(sql)){
 			
@@ -48,7 +52,7 @@ public class JdbcLotRepository implements LotRepository{
 			pstm.setString(2, lot.getProduct().getId().toString());
 			pstm.setDate(3, entry);
 			pstm.setDate(4, expires);
-			pstm.setBigDecimal(5, lot.getInitialQuantity());
+			pstm.setBigDecimal(5, lot.getTotalReceivedQuantity());
 			pstm.setBigDecimal(6, lot.getAvailableQuantity());
 			
 			pstm.executeUpdate();
@@ -63,73 +67,60 @@ public class JdbcLotRepository implements LotRepository{
 		if (id == null)
 			throw new IllegalArgumentException("O ID é obrigatório.");
 
-		String sql = "SELECT id, product_id, entry_date, expiration_date, initial_quantity, available_quantity FROM lots WHERE id = ?";
-
-		UUID productId;
-		LocalDate entry;
-		LocalDate expires;
-		BigDecimal initialQuantity;
-		BigDecimal availableQuantity;
-
-		try (Connection conn = DatabaseConnection.getConnection();
-				PreparedStatement pstm = conn.prepareStatement(sql)) {
-
-			pstm.setString(1, id.toString());
-			try (ResultSet rs = pstm.executeQuery()) {
-				if (!rs.next())
-					return Optional.empty();
-
-				productId = UUID.fromString(rs.getString("product_id"));
-				entry = rs.getObject("entry_date", LocalDate.class);
-				expires = rs.getObject("expiration_date", LocalDate.class);
-				initialQuantity = rs.getBigDecimal("initial_quantity");
-				availableQuantity = rs.getBigDecimal("available_quantity");
-			}
+		try (Connection conn = DatabaseConnection.getConnection()) {
+			return findLot(conn,id);
 		} 
 		catch (SQLException e) {
 			throw new PersistenceException("Não foi possível realizar a busca pelo ID do lote.", e);
 		}
-		
-		ReadOnlyProduct p = productRepository.findById(productId)
-				.orElseThrow(() -> new PersistenceException("O lote encontrado referencia um produto inexistente.",
-						new IllegalStateException("Produto associado não encontrado.")));
-
-		Lot lot = Lot.reconstitute(id, p, entry, expires, initialQuantity, availableQuantity);
-
-		return Optional.of(lot);
 	}
 
 	@Override
+	public Optional<ReadOnlyLot> findById(Connection conn, UUID id) {
+		
+		if(conn == null)
+			throw new IllegalArgumentException("A conexão é obrigatória.");
+		
+		if (id == null)
+			throw new IllegalArgumentException("O ID é obrigatório.");
+
+		return findLot(conn,id).map(lot -> (ReadOnlyLot) lot);
+	}
+	
+	@Override
 	public List<Lot> findByProductId(UUID productId) {
 		if (productId == null)
-		    throw new IllegalArgumentException("O ID do produto é obrigatório.");
-		
-		Product product = productRepository.findById(productId).orElseThrow(() -> new IllegalArgumentException("Produto não encontrado."));
-		
-		String query = "SELECT id, entry_date, expiration_date, initial_quantity, available_quantity FROM lots WHERE product_id = ?";
-		
-		try(Connection conn = DatabaseConnection.getConnection();
-				PreparedStatement pstm = conn.prepareStatement(query)){
-			
-			pstm.setString(1, product.getId().toString());
-			List<Lot> lots = new ArrayList<>();
-			
-			try(ResultSet rs = pstm.executeQuery()){
+			throw new IllegalArgumentException("O ID do produto é obrigatório.");
 
-				while(rs.next()) {
-					UUID uuid = UUID.fromString(rs.getString("id"));
-					LocalDate entry = rs.getObject("entry_date", LocalDate.class);
-					LocalDate expires = rs.getObject("expiration_date", LocalDate.class);
-					BigDecimal initialQuantity = rs.getBigDecimal("initial_quantity");
-					BigDecimal availableQuantity = rs.getBigDecimal("available_quantity");
-					
-					Lot lot = Lot.reconstitute(uuid, product, entry, expires, initialQuantity, availableQuantity);
-					lots.add(lot);
+		String query = "SELECT id, entry_date, expiration_date, total_received_quantity, available_quantity FROM lots WHERE product_id = ?";
+
+		try (Connection conn = DatabaseConnection.getConnection()) {
+
+			Product product = productRepository.findById(conn, productId)
+					.orElseThrow(() -> new IllegalArgumentException("Produto não encontrado."));
+
+			try (PreparedStatement pstm = conn.prepareStatement(query)) {
+				
+				pstm.setString(1, product.getId().toString());
+				List<Lot> lots = new ArrayList<>();
+
+				try (ResultSet rs = pstm.executeQuery()) {
+
+					while (rs.next()) {
+						UUID uuid = UUID.fromString(rs.getString("id"));
+						LocalDate entry = rs.getObject("entry_date", LocalDate.class);
+						LocalDate expires = rs.getObject("expiration_date", LocalDate.class);
+						BigDecimal totalReceivedQuantity = rs.getBigDecimal("total_received_quantity");
+						BigDecimal availableQuantity = rs.getBigDecimal("available_quantity");
+
+						Lot lot = Lot.reconstitute(uuid, product, entry, expires, totalReceivedQuantity,
+								availableQuantity);
+						lots.add(lot);
+					}
 				}
+				return lots;
 			}
-			return lots;
-		}
-		catch(SQLException e) {
+		} catch (SQLException e) {
 			throw new PersistenceException("Não foi possível realizar a busca pelo ID do produto.", e);
 		}
 	}
@@ -167,7 +158,7 @@ public class JdbcLotRepository implements LotRepository{
 	public int decreaseAvailableQuantityForSale(Connection conn, UUID uuid, BigDecimal quantity) {
 		
 		if(conn == null)
-			throw new IllegalArgumentException("Conexão mal sucedida.");
+			throw new IllegalArgumentException("A conexão é obrigatória.");
 		
 		if(uuid == null)
 			throw new IllegalArgumentException("UUID null, preencha corretamente.");
@@ -197,7 +188,7 @@ public class JdbcLotRepository implements LotRepository{
 	public int decreaseAvailableQuantityForLoss(Connection conn, UUID uuid, BigDecimal quantity) {
 		
 		if(conn == null)
-			throw new IllegalArgumentException("Conexão mal sucedida.");
+			throw new IllegalArgumentException("A conexão é obrigatória.");
 		
 		if(uuid == null)
 			throw new IllegalArgumentException("UUID null, preencha corretamente.");
@@ -225,17 +216,69 @@ public class JdbcLotRepository implements LotRepository{
 
 	@Override
 	public int increaseAvailableQuantityForAdditionalEntry(Connection conn, UUID uuid, BigDecimal quantity) {
-		String query = "UPDATE lots SET available_quantity = available_quantity + ? WHERE id = ? AND expiration_date >= CURRENT_DATE";
+		
+		if(conn == null)
+			throw new IllegalArgumentException("A conexão é obrigatória.");
+		
+		if(uuid == null)
+			throw new IllegalArgumentException("UUID null, preencha corretamente.");
+			
+		if(quantity == null)
+			throw new IllegalArgumentException("Quantidade nulla, preencha corretamente.");
+		
+		if(quantity.compareTo(BigDecimal.ZERO) <= 0)
+			throw new IllegalArgumentException("A quantidade não pode ser zero ou negativo.");
+		
+		String query = "UPDATE lots SET total_received_quantity = total_received_quantity + ?, available_quantity = available_quantity + ? WHERE id = ? AND expiration_date >= CURRENT_DATE";
 		
 		try(PreparedStatement pstm = conn.prepareStatement(query)){
-			
+
 			pstm.setBigDecimal(1, quantity);
-			pstm.setString(2, uuid.toString());
+			pstm.setBigDecimal(2, quantity);
+			pstm.setString(3, uuid.toString());
 			
 			return pstm.executeUpdate();
 		}
 		catch(SQLException e) {
 			throw new PersistenceException("Não foi possível salvar a nova entrada.", e);
 		}
+	}
+	
+	private Optional<Lot> findLot(Connection conn, UUID id){
+		String sql = "SELECT id, product_id, entry_date, expiration_date, total_received_quantity, available_quantity FROM lots WHERE id = ?";
+		
+	    UUID productId;
+	    LocalDate entry;
+	    LocalDate expires;
+	    BigDecimal totalReceived;
+	    BigDecimal available;
+
+	    try (PreparedStatement pstm = conn.prepareStatement(sql)) {
+	        pstm.setString(1, id.toString());
+
+	        try (ResultSet rs = pstm.executeQuery()) {
+	            if (!rs.next())
+	                return Optional.empty();
+
+	            productId = UUID.fromString(rs.getString("product_id"));
+	            entry = rs.getObject("entry_date", LocalDate.class);
+	            expires = rs.getObject("expiration_date", LocalDate.class);
+	            totalReceived = rs.getBigDecimal("total_received_quantity");
+	            available = rs.getBigDecimal("available_quantity");
+	        }
+
+	        ReadOnlyProduct product = productRepository.findById(conn, productId)
+	            .orElseThrow(() -> new PersistenceException(
+	                "O lote encontrado referencia um produto inexistente.",
+	                new IllegalStateException("Produto associado não encontrado.")
+	            ));
+
+	        return Optional.of(Lot.reconstitute(id, product, entry, expires, totalReceived, available));
+		}
+		catch (SQLException e) {
+	        throw new PersistenceException(
+	                "Não foi possível realizar a busca pelo ID do lote.", e
+	            );
+	        }
 	}
 }

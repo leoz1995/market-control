@@ -14,7 +14,7 @@ import marketcontrol.domain.repository.*;
 import marketcontrol.dtos.ProductDTO;
 import marketcontrol.DatabaseTestCleanup;
 
-class ProductServiceTest {
+class ProductServiceIntegrationTest {
     private ProductService service;
     private CategoryService categories;
     private ReadOnlyCategory category;

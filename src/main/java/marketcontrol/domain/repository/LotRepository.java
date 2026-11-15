@@ -7,11 +7,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 import marketcontrol.domain.model.Lot;
+import marketcontrol.domain.model.interfaces.ReadOnlyLot;
 
 public interface LotRepository {
 	
 	void save(Connection conn, Lot lot);
 	Optional<Lot> findById(UUID id);
+	Optional<ReadOnlyLot> findById(Connection conn, UUID id);
 	List<Lot> findByProductId(UUID productId);
 	BigDecimal getTotalAvailableQuantity(UUID productId);
 	int decreaseAvailableQuantityForSale(Connection conn, UUID uuid, BigDecimal quantity);

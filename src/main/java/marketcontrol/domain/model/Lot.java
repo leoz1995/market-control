@@ -13,19 +13,19 @@ public class Lot implements ReadOnlyLot{
 	private final ReadOnlyProduct product;
 	private final LocalDate entryDate;
 	private final LocalDate expirationDate;
-	private final BigDecimal initialQuantity;
+	private final BigDecimal totalReceivedQuantity;
 	private final BigDecimal availableQuantity;
 	
-	private Lot(UUID id, ReadOnlyProduct product, LocalDate entryDate, LocalDate expirationDate, BigDecimal initialQuantity, BigDecimal availableQuantity) {
+	private Lot(UUID id, ReadOnlyProduct product, LocalDate entryDate, LocalDate expirationDate, BigDecimal totalReceivedQuantity, BigDecimal availableQuantity) {
 		this.id = id;
 		this.product = product;
 		this.entryDate = entryDate;
 		this.expirationDate = expirationDate;
-		this.initialQuantity = initialQuantity;
+		this.totalReceivedQuantity = totalReceivedQuantity;
 		this.availableQuantity = availableQuantity;
 	}
 
-	public static Lot create(ReadOnlyProduct product, LocalDate entryDate, LocalDate expirationDate, BigDecimal initialQuantity) {
+	public static Lot create(ReadOnlyProduct product, LocalDate entryDate, LocalDate expirationDate, BigDecimal totalReceivedQuantity) {
 		
 		if(product == null)
 			throw new IllegalArgumentException("O produto não existe.");
@@ -36,11 +36,11 @@ public class Lot implements ReadOnlyLot{
 		if(expirationDate == null)
 			throw new IllegalArgumentException("A data de expiração precisa ser válida.");
 
-		if(initialQuantity == null)
+		if(totalReceivedQuantity == null)
 			throw new IllegalArgumentException("A quantidade recebida precisa ser válida.");
 		
-		if(initialQuantity.compareTo(BigDecimal.ZERO) <= 0)
-			throw new IllegalArgumentException("Estoque inicial não aceita valor zero ou negativo.");
+		if(totalReceivedQuantity.compareTo(BigDecimal.ZERO) <= 0)
+			throw new IllegalArgumentException("Quantidade total recebida não pode ser zero ou negativa.");
 			
 		if(expirationDate.isBefore(entryDate))
 			throw new IllegalArgumentException("A data de validade deve ser posterior ou igual a data de entrada.");
@@ -48,10 +48,10 @@ public class Lot implements ReadOnlyLot{
 		if(entryDate.isAfter(LocalDate.now()))
 			throw new IllegalArgumentException("A data de entrada não pode ser no futura.");
 			
-		return new Lot(UUID.randomUUID(), product, entryDate, expirationDate, initialQuantity, initialQuantity);
+		return new Lot(UUID.randomUUID(), product, entryDate, expirationDate, totalReceivedQuantity, totalReceivedQuantity);
 	}
 	
-	public static Lot reconstitute(UUID id, ReadOnlyProduct product, LocalDate entryDate, LocalDate expirationDate, BigDecimal initialQuantity, BigDecimal availableQuantity) {
+	public static Lot reconstitute(UUID id, ReadOnlyProduct product, LocalDate entryDate, LocalDate expirationDate, BigDecimal totalReceivedQuantity, BigDecimal availableQuantity) {
 	
 		if(id == null)
 			throw new IllegalArgumentException("O ID não pode ser null.");
@@ -71,19 +71,19 @@ public class Lot implements ReadOnlyLot{
 		if(availableQuantity == null)
 			throw new IllegalArgumentException("A quantidade disponível não pode ser null.");
 		
-		if(initialQuantity == null)
-			throw new IllegalArgumentException("A quantidade inicial não pode ser null.");
+		if(totalReceivedQuantity == null)
+			throw new IllegalArgumentException("A quantidade total recebida precisa ser válida.");
 		
 		if(availableQuantity.compareTo(BigDecimal.ZERO) < 0)
 		    throw new IllegalArgumentException("Estoque disponível não pode ser negativo.");
 
-		if(availableQuantity.compareTo(initialQuantity) > 0)
-		    throw new IllegalArgumentException("Estoque disponível não pode superar o estoque inicial.");
+		if(availableQuantity.compareTo(totalReceivedQuantity) > 0)
+		    throw new IllegalArgumentException("Estoque disponível não pode superar o estoque total.");
 		
-		if(initialQuantity.compareTo(BigDecimal.ZERO) <= 0)
-			throw new IllegalArgumentException("A quantidade de estoque inicial precisa ser maior que zero.");
+		if(totalReceivedQuantity.compareTo(BigDecimal.ZERO) <= 0)
+			throw new IllegalArgumentException("A quantidade de estoque total precisa ser maior que zero.");
 
-		return new Lot(id, product, entryDate, expirationDate, initialQuantity, availableQuantity);
+		return new Lot(id, product, entryDate, expirationDate, totalReceivedQuantity, availableQuantity);
 	}
 	
 	public ReadOnlyProduct getProduct() {
@@ -98,8 +98,8 @@ public class Lot implements ReadOnlyLot{
 		return expirationDate;
 	}
 
-	public BigDecimal getInitialQuantity() {
-		return initialQuantity;
+	public BigDecimal getTotalReceivedQuantity() {
+		return totalReceivedQuantity;
 	}
 	
 	public BigDecimal getAvailableQuantity() {
@@ -117,7 +117,7 @@ public class Lot implements ReadOnlyLot{
 	@Override
 	public String toString() {
 		return "Lot [id=" + id + ", product=" + product.getName() + ", entryDate=" + entryDate + ", expirationDate="
-				+ expirationDate + ", initialQuantity=" + initialQuantity + ", availableQuantity=" + availableQuantity
+				+ expirationDate + ", totalReceivedQuantity=" + totalReceivedQuantity + ", availableQuantity=" + availableQuantity
 				+ "]";
 	}
 }

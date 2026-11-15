@@ -37,22 +37,30 @@ public class LotService{
 		this.stockMovementService = stockMovementService;
 	}
 
-	public ReadOnlyLot save(UUID productId, LocalDate entryDate, LocalDate expirationDate, BigDecimal initialQuantity) {
+	public ReadOnlyLot save(UUID productId, LocalDate entryDate, LocalDate expirationDate, BigDecimal totalReceivedQuantity) {
 		if(productId == null)
 			throw new IllegalArgumentException("O produto não é válido.");
 		
 		ReadOnlyProduct product = productService.findById(productId);
 		
-		Lot lot = Lot.create(product, entryDate, expirationDate, initialQuantity);
+		Lot lot = Lot.create(product, entryDate, expirationDate, totalReceivedQuantity);
 
 		transactionManager.execute(conn ->{
 			lotRepository.save(conn, lot);
-			stockMovementService.registerInitialEntry(conn, lot);			
+			stockMovementService.registerInitialEntry(conn, lot);
 		});
 		
 		return lot;	
 	}
 
+	public ReadOnlyLot updateStockLot(UUID lotId, BigDecimal quantity) {
+		
+		if(lotId == null)
+			throw new IllegalArgumentException("O lote não é válido.");
+
+		return stockMovementService.registerAdditionalEntry(lotId, quantity);
+	}
+	
 	public ReadOnlyLot findById(UUID id){
 		return lotRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("ID inválido."));
 	}

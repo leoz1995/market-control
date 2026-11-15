@@ -12,9 +12,9 @@ O objetivo da primeira versão é levar o sistema em Java puro até uma API HTTP
 
 O projeto já usa Java 25, Maven, MariaDB e JDBC. Existem modelos e serviços para categorias, produtos, lotes e movimentações. Os repositórios JDBC persistem essas entidades; `JdbcTransactionManager` fornece transações usadas em operações de estoque.
 
-O terminal (`Program`) permite cadastrar/listar/buscar/editar produtos, cadastrar categorias e cadastrar/consultar lotes. A criação de lote tenta registrar uma movimentação de entrada. O serviço de estoque também contém operações de entrada, venda e perda. Ainda não há menu de terminal para venda, perda, ajuste ou consulta de histórico.
+O terminal (`Program`) permite cadastrar/listar/buscar/editar produtos, cadastrar categorias e cadastrar/consultar/atualizar lotes. `LotService` e `StockMovementService` têm operações para entrada inicial e adicional, venda e perda. Ainda não há menu de terminal para venda, perda, ajuste ou consulta do histórico.
 
-**Correção em avaliação no `updt.diff`:** a entrada inicial agora grava o movimento e seu item sem incrementar novamente o saldo já salvo no lote; entradas adicionais usam um fluxo separado que atualiza o saldo. O teste de integração `LotServiceTest.lotCreationPersistsOnlyInitialQuantityAndEntryMovement` passou em 15/11/2026: para quantidade inicial 10, confirmou saldo disponível 10, um movimento `ENTRY`, um item com quantidade 10 e reconstituição bem-sucedida do lote. A suíte completa também passou (77 testes). Ainda faltam testes JDBC para entrada adicional e rollback da entrada inicial.
+`totalReceivedQuantity` acumula a entrada inicial e todas as entradas adicionais; `availableQuantity` é o saldo atual. A entrada inicial grava o lote e o histórico `ENTRY` na mesma transação, sem somar o saldo duas vezes. Cada entrada adicional aumenta o total recebido e o disponível, registra seu movimento e retorna o lote atualizado. Integrações verificam rollback quando a gravação do movimento falha, inclusive na criação inicial.
 
 ## Funcionalidades e limites
 
@@ -30,11 +30,11 @@ O terminal (`Program`) permite cadastrar/listar/buscar/editar produtos, cadastra
 - Repositórios JDBC para categoria, produto, lote, movimentação e item de movimentação.
 - Transações explícitas em operações de venda/perda e na criação de lote com entrada.
 
-Existir uma classe ou método não significa que o fluxo esteja pronto: a entrada inicial apresenta a falha descrita acima. Consulte [requisitos e estado por funcionalidade](docs/requirements.md) e [progresso e evidências](docs/meu_progresso.md).
+Existir uma classe ou método não significa que o fluxo esteja pronto. Consulte [requisitos e estado por funcionalidade](docs/requirements.md) e [progresso e evidências](docs/meu_progresso.md) para limites e pendências verificados.
 
 ### Ainda não implementados ou incompletos
 
-- Correção da duplicação do saldo inicial e validação integral da criação de lote com entrada.
+- Tratamento de erros com exceções específicas e responsabilidades definidas por camada.
 - Consulta de histórico de movimentações.
 - Ajuste de estoque e consumo de uma venda entre vários lotes (por exemplo, FEFO).
 - Regras completas de validade próxima, estoque mínimo e alertas.
@@ -50,11 +50,12 @@ As porcentagens são estimativas de engenharia de Leonardo Alves, não cobertura
 
 | Etapa | Avanço estimado | Evidência principal / trabalho restante |
 |---|---:|---|
-| Domínio e serviços Java puro | 65% | Entidades, serviços e invariantes iniciais existem; entrada de lote tem inconsistência e faltam casos como FEFO, ajustes e fornecedor. |
-| Persistência JDBC/MariaDB | 70% | Repositórios JDBC e transações existem; validar fluxos completos e corrigir/testar criação de lote com entrada. |
+| Domínio e serviços Java puro | 65% | Entidades, serviços e invariantes iniciais existem; faltam decisões e fluxos como FEFO, ajustes e fornecedor. |
+| Persistência JDBC/MariaDB | 70% | Repositórios JDBC e transações existem; ampliar falhas de conexão e testes diretos dos repositories restantes. |
 | Terminal e fluxo operacional | 45% | Cadastro e consulta básicos existem; faltam vendas, perdas, ajustes e histórico no menu. |
-| Testes e confiabilidade do núcleo | 60% | Há testes de domínio, serviço e JDBC; execução atual: 76 aprovados e 1 falha conhecida. Há lacunas de concorrência e falhas de commit/rollback. |
-| API HTTP em Java puro | 0% | Ainda não há servidor, endpoints, contratos HTTP ou testes da fronteira. |
+| Testes e confiabilidade do núcleo | 75% | A execução atual tem 121 testes aprovados; atomicidade, `execute`/`executeAndReturn`, repositories e concorrência foram exercitados. Persistem lacunas registradas em [meu_progresso.md](docs/meu_progresso.md). |
+| Tratamento de erros | 0% | Próxima etapa oficial; ainda não foi iniciada. |
+| API HTTP em Java puro | 0% | Etapa posterior ao tratamento de erros; ainda não há servidor, endpoints, contratos HTTP ou testes da fronteira. |
 | Front-end Angular com apoio de IA | 0% | Planejado após a API; ainda sem aplicação, integração ou testes de interface. |
 | Backend Spring Boot v2 | 0% | Migração posterior ao aprendizado do caminho Java puro até HTTP; não iniciar antes dos critérios da v1. |
 
@@ -79,7 +80,7 @@ src/main/java/marketcontrol/
 ├── infrastructure/database/             # conexão JDBC
 ├── infrastructure/persistence/jdbc/     # repositórios e transações JDBC
 ├── service/                             # casos de uso
-└── transaction/                         # contrato de trabalho transacional
+└── transaction/                         # execute, executeAndReturn e callbacks
 src/test/java/                           # unitários, fakes e integração JDBC
 database/                                # scripts de schema MariaDB
 docs/                                    # requisitos, roadmap e progresso
@@ -103,9 +104,11 @@ Use credenciais locais com permissões adequadas e não as versione. A conexão 
 mvn test
 ```
 
-Os testes de domínio e os testes com fakes não precisam de banco. Testes de serviço/JDBC e a verificação de conexão acessam o MariaDB configurado; os testes de integração criam dados com identificadores próprios e os removem no cleanup. Use uma base exclusiva de testes.
+Os testes unitários de domínio e com fakes não precisam de banco. As classes `*IntegrationTest` acessam a base indicada em `database.properties`, criam registros com identificadores exclusivos e removem os dados associados aos testes. A configuração local atual aponta para `marketcontrol`, que o desenvolvedor definiu como banco local de testes. A aplicação não cria nem valida automaticamente um banco separado.
 
-Na execução registrada em **14 de novembro de 2026**, a suíte compilou e executou 77 casos: **76 passaram e 1 falhou** em `LotServiceTest.lotCreationPersistsOnlyInitialQuantityAndEntryMovement`. A falha é a duplicação do saldo de entrada descrita acima. Reexecute após mudanças; este resultado é um registro, não uma garantia para execuções futuras.
+Na auditoria complementar de **15 de novembro de 2026**, `mvn clean test` compilou do zero e executou **121 testes: 121 aprovados, 0 falhas, 0 erros e 0 ignorados**. Foram 75 testes unitários e 46 integrações MariaDB. Os cenários incluem commit/rollback dos callbacks `execute` e `executeAndReturn`, atomicidade de entrada inicial/adicional, venda e perda, falhas em gravação de movimento, conexões recebidas pelos repositories, quatro disputas concorrentes e as três constraints de quantidade de lote. Consulte [progresso e evidências](docs/meu_progresso.md) para limites de falhas de infraestrutura e a lista por classe.
+
+O `TransactionManager` oferece `execute(TransactionWork)` para operação sem resultado e `<T> executeAndReturn(TransactionAction<T>)` para operação com resultado. Ambos delegam o ciclo de conexão, commit e rollback ao mecanismo compartilhado de `JdbcTransactionManager`.
 
 ## Executar o terminal
 
@@ -115,3 +118,9 @@ Compile com `mvn package` e execute `marketcontrol.Program` pela IDE, com `targe
 
 - [Requisitos, estado funcional e critérios](docs/requirements.md)
 - [Progresso, evidências de teste e plano por etapa](docs/meu_progresso.md)
+
+## Próximas etapas oficiais
+
+1. **Tratamento de erros:** definir exceções específicas, distinguir validação, regra de negócio, recurso ausente e persistência, e documentar a propagação de erros por camada. Esta etapa ainda não foi implementada.
+2. **HTTP nativo do Java:** após o tratamento de erros, estudar requisições/respostas, roteamento, DTOs e JSON; criar primeiro `GET /api/health` e avançar gradualmente com testes HTTP. Não introduzir Spring Boot nesta etapa.
+3. Angular com apoio de IA e, depois, Spring Boot v2 permanecem etapas futuras.

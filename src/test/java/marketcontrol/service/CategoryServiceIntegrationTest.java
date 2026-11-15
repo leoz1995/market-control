@@ -10,7 +10,7 @@ import marketcontrol.infrastructure.persistence.jdbc.JdbcCategoryRepository;
 import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.DatabaseTestCleanup;
 
-class CategoryServiceTest {
+class CategoryServiceIntegrationTest {
     private CategoryService service;
 
     private String run = UUID.randomUUID().toString().substring(0, 8);

@@ -5,7 +5,7 @@ import java.sql.Connection;
 import org.junit.jupiter.api.Test;
 import marketcontrol.infrastructure.database.DatabaseConnection;
 
-class DataBaseConnectionTest {
+class DataBaseConnectionIntegrationTest {
     @Test void shouldOpenMariaDbConnection() throws Exception {
         try (Connection connection = DatabaseConnection.getConnection()) {
             assertNotNull(connection);

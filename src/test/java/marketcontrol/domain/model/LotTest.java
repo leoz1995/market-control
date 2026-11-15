@@ -20,7 +20,7 @@ class LotTest {
     @Test void createsLotWithValidData() {
         Lot lot = Lot.create(product, LocalDate.now(), LocalDate.now().plusDays(30), new BigDecimal("100"));
         assertNotNull(lot.getId());
-        assertEquals(0, new BigDecimal("100").compareTo(lot.getInitialQuantity()));
+        assertEquals(0, new BigDecimal("100").compareTo(lot.getTotalReceivedQuantity()));
         assertEquals(0, new BigDecimal("100").compareTo(lot.getAvailableQuantity()));
     }
 
@@ -69,7 +69,15 @@ class LotTest {
                 new BigDecimal("100"), new BigDecimal("42"));
         assertEquals(id, lot.getId());
         assertEquals(0, new BigDecimal("42").compareTo(lot.getAvailableQuantity()));
-        assertEquals(0, new BigDecimal("100").compareTo(lot.getInitialQuantity()));
+        assertEquals(0, new BigDecimal("100").compareTo(lot.getTotalReceivedQuantity()));
+    }
+
+    @Test void reconstitutesExhaustedLotWithZeroAvailableQuantity() {
+        Lot lot = Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now().minusDays(2),
+                LocalDate.now().plusDays(10), new BigDecimal("100"), BigDecimal.ZERO);
+
+        assertEquals(0, BigDecimal.ZERO.compareTo(lot.getAvailableQuantity()));
+        assertEquals(0, new BigDecimal("100").compareTo(lot.getTotalReceivedQuantity()));
     }
 
     @Test void rejectsNullIdDuringReconstitution() {

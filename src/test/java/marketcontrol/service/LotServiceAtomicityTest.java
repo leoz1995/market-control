@@ -14,8 +14,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 import marketcontrol.domain.model.StockMovement;
+import marketcontrol.domain.model.interfaces.ReadOnlyLot;
 import marketcontrol.domain.repository.LotRepository;
 import marketcontrol.domain.repository.StockMovementRepository;
+import marketcontrol.FakeTransactionManager;
 import marketcontrol.transaction.TransactionManager;
 
 /** Service tests using fakes. They do not exercise JDBC or MariaDB transactions. */
@@ -27,7 +29,7 @@ class LotServiceAtomicityTest {
         Connection connection = proxyConnection();
         FakeLots lots = new FakeLots(lotId, lotConnection, 1);
         StockMovementRepository movements = (conn, movement) -> movementConnection.set(conn);
-        StockMovementService service = new StockMovementService(work -> work.execute(connection), movements, lots);
+        StockMovementService service = new StockMovementService(new FakeTransactionManager(connection), movements, lots);
 
         service.registerSale(lotId, new BigDecimal("10"));
 
@@ -45,14 +47,19 @@ class LotServiceAtomicityTest {
         StockMovementRepository movements = (conn, movement) -> {
             throw new IllegalStateException("simulated movement repository failure");
         };
-        TransactionManager simulatedTransaction = work -> {
-            BigDecimal before = lots.available.get();
-            try {
-                work.execute(connection);
-            } catch (RuntimeException failure) {
-                lots.available.set(before);
-                rollbackPath.set(true);
-                throw failure;
+        TransactionManager simulatedTransaction = new TransactionManager() {
+            @Override public <T> T executeAndReturn(marketcontrol.transaction.TransactionAction<T> action) {
+                return action.execute(connection);
+            }
+            @Override public void execute(marketcontrol.transaction.TransactionWork work) {
+                BigDecimal before = lots.available.get();
+                try {
+                    work.execute(connection);
+                } catch (RuntimeException failure) {
+                    lots.available.set(before);
+                    rollbackPath.set(true);
+                    throw failure;
+                }
             }
         };
         StockMovementService service = new StockMovementService(simulatedTransaction, movements, lots);
@@ -69,7 +76,7 @@ class LotServiceAtomicityTest {
         AtomicBoolean movementSaved = new AtomicBoolean();
         FakeLots lots = new FakeLots(lotId, capturedConnection, 0);
         StockMovementRepository movements = (conn, movement) -> movementSaved.set(true);
-        StockMovementService service = new StockMovementService(work -> work.execute(proxyConnection()), movements, lots);
+        StockMovementService service = new StockMovementService(new FakeTransactionManager(proxyConnection()), movements, lots);
 
         assertThrows(IllegalArgumentException.class, () -> service.registerSale(lotId, BigDecimal.ONE));
 
@@ -80,9 +87,15 @@ class LotServiceAtomicityTest {
     @Test void rejectsInvalidSaleBeforeExecutingTransaction() {
         AtomicBoolean transactionStarted = new AtomicBoolean();
         FakeLots lots = new FakeLots(UUID.randomUUID(), new AtomicReference<>(), 1);
-        StockMovementService service = new StockMovementService(work -> {
-            transactionStarted.set(true);
-            work.execute(proxyConnection());
+        StockMovementService service = new StockMovementService(new TransactionManager() {
+            @Override public <T> T executeAndReturn(marketcontrol.transaction.TransactionAction<T> action) {
+                transactionStarted.set(true);
+                return action.execute(proxyConnection());
+            }
+            @Override public void execute(marketcontrol.transaction.TransactionWork work) {
+                transactionStarted.set(true);
+                work.execute(proxyConnection());
+            }
         }, (conn, movement) -> {}, lots);
 
         assertThrows(IllegalArgumentException.class, () -> service.registerSale(lots.lotId, BigDecimal.ZERO));
@@ -108,6 +121,7 @@ class LotServiceAtomicityTest {
 
         public void save(Connection conn, marketcontrol.domain.model.Lot lot) {}
         public Optional<marketcontrol.domain.model.Lot> findById(UUID id) { return Optional.empty(); }
+        public Optional<ReadOnlyLot> findById(Connection conn, UUID id) { return Optional.empty(); }
         public List<marketcontrol.domain.model.Lot> findByProductId(UUID productId) { return List.of(); }
         public BigDecimal getTotalAvailableQuantity(UUID productId) { return available.get(); }
 

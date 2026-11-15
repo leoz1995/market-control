@@ -48,7 +48,7 @@ public class ProductService {
 		if(dto == null)
 			throw new IllegalArgumentException("Produto não foi identificado.");
 
-		Product product = productRepository.findById(uuid)
+		Product product = productRepository.findProductById(uuid)
 				.orElseThrow(() -> new IllegalArgumentException("Produto com UUID informado não foi encontrado."));
 		
 		if(dto.unit() != product.getUnit())
@@ -73,7 +73,7 @@ public class ProductService {
 	}
 	
 	public ReadOnlyProduct findById(UUID productId) {
-		return productRepository.findById(productId)
+		return productRepository.findProductById(productId)
 				.orElseThrow(() -> new IllegalArgumentException("Produto com UUID informado não foi encontrado."));
 	}
 	

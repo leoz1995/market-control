@@ -1,7 +1,7 @@
 # MarketControl — requisitos, estado funcional e roadmap
 
 **Responsável e autor das decisões de implementação:** Leonardo Alves
-**Revisão:** 15 de novembro de 2026
+**Revisão e auditoria de testes:** 15 de novembro de 2026
 **Estado:** projeto Java puro em desenvolvimento, com domínio, serviços, terminal, MariaDB/JDBC e movimentos parciais. Não existe API HTTP nem front-end Angular.
 
 Este documento separa três coisas: comportamento que existe no código, comportamento confirmado por teste e objetivo ainda planejado. A presença de uma classe ou método não basta para marcar um requisito como concluído. Na colaboração atual, a IA atualiza documentação e testes; o código de produção é desenvolvido e alterado por Leonardo Alves.
@@ -34,15 +34,15 @@ Os perfis futuros são administrador e operador de estoque. Cadastro, autentica�
 | RF03 | Ativar/desativar produto | Planejado: `Product` não possui estado ativo. |
 | RF04 | Cadastrar e editar categorias | Parcial: domínio, serviço, JDBC e interface de terminal para cadastro existem; ampliar operações de terminal e regras de categoria inativa. |
 | RF05 | Cadastrar fornecedores | Planejado: não há modelo, serviço, tabela nem relação com lote. |
-| RF06 | Registrar entrada inicial de mercadoria | Parcial: `LotService.save` salva lote e movimento/item `ENTRY` na mesma transação. O teste JDBC atualizado confirma que o saldo inicial não é contado duas vezes; rollback por falha ao gravar o movimento ainda merece teste de integração dedicado. |
-| RF07 | Cadastrar lotes e validade | Parcial: lote JDBC, datas e quantidades existem. O teste de criação confirma saldo consistente e reconstituição; ampliar casos de falha e entrada adicional. |
+| RF06 | Registrar entrada inicial de mercadoria | Parcial: `LotService.save` persiste lote e movimento/item `ENTRY` na mesma transação. Integração confirma saldo inicial único, registro de histórico e rollback do lote/movimento/item quando a gravação falha. |
+| RF07 | Cadastrar lotes e validade | Parcial: lote JDBC, datas, total recebido e saldo disponível existem. Integração testa criação, reconstituição, listagem, totalização e entrada adicional; a cobertura direta dos métodos JDBC ainda pode crescer. |
 | RF08 | Registrar venda/saída | Parcial: `StockMovementService.registerSale` opera em um lote por chamada e atualiza saldo/movimento sob transação. Faltam seleção e distribuição entre lotes e fluxo no terminal. |
 | RF09 | Consultar estoque disponível | Parcial: `JdbcLotRepository` agrega saldo de lotes com validade hoje ou futura; validação do saldo depende de lotes íntegros. |
 | RF10 | Evitar venda de lote vencido | Parcial: `Lot.isExpired` identifica validade anterior a hoje e o SQL de venda exige validade não vencida. Ampliar testes de limites e regra de timezone/data. |
 | RF11 | Alertar sobre validade próxima | Planejado: não há consulta, política configurada nem alerta. |
 | RF12 | Consultar histórico de entradas/saídas/perdas/ajustes | Parcial: modelo e gravação JDBC de movimento/item existem; repositório de leitura, serviço de consulta e interface não foram identificados. |
 | RF13 | Alertar estoque mínimo | Planejado: `Product` não contém estoque mínimo nem existe consulta/alerta. |
-| RF14 | Registrar perda | Parcial: `StockMovementService.registerLoss` atualiza um lote e grava movimento transacional; falta definir elegibilidade da perda e fluxo de terminal. |
+| RF14 | Registrar perda | Parcial: `StockMovementService.registerLoss` atualiza um lote e grava movimento/item transacional; integração valida saldo e histórico. Falta definir elegibilidade, justificativas por ocorrência e fluxo de terminal. |
 | RF15 | Consultar produtos por categoria | Planejado: produtos referenciam categoria e são listados, mas não há busca dedicada por categoria. |
 | RF16 | Cadastrar usuários | Planejado. |
 | RF17 | Autenticar usuários | Planejado para discussão na v2; nenhuma autenticação existe. |
@@ -83,9 +83,11 @@ Decidir e documentar: se conversões (por exemplo, kg ↔ g) serão aceitas; esc
 
 ### 5.3 Lotes e saldo
 
-Regras atualmente implementadas no modelo: produto e datas obrigatórios; quantidade inicial maior que zero; entrada não pode ser futura; validade não pode anteceder entrada; reconstituição exige saldo não negativo e não acima do inicial; lote é vencido se validade for anterior a hoje.
+Regras atualmente implementadas no modelo: produto e datas obrigatórios; total recebido inicial maior que zero; entrada não pode ser futura; validade não pode anteceder entrada; reconstituição exige saldo não negativo e não acima do total recebido; lote é vencido se validade for anterior a hoje.
 
-**Duplicação inicial corrigida no diff em avaliação:** `Lot.create` inicia saldo disponível igual ao inicial. `LotService.save` persiste o lote e chama `registerInitialEntry`, que registra o cabeçalho e o item `ENTRY` sem atualizar novamente o saldo. O método e SQL de soma foram renomeados para representar entrada adicional (`registerAdditionalEntry` / `increaseAvailableQuantityForAdditionalEntry`). O teste JDBC de criação foi ajustado para exigir saldo 10 para lote inicial de 10, movimento e item únicos com quantidade 10 e sucesso de `findById`.
+`Lot.create` inicia `total_received_quantity` e `available_quantity` com a quantidade inicial. `LotService.save` persiste o lote e chama `registerInitialEntry`, que grava cabeçalho/item `ENTRY` sem somar o saldo de novo. `registerAdditionalEntry` chama `increaseAvailableQuantityForAdditionalEntry`, que soma a nova quantidade tanto ao total recebido quanto ao disponível. Testes JDBC exigem consistência entre saldo, total recebido e itens de entrada, inclusive após consumo parcial.
+
+O `database/03_lots.sql` atual declara três constraints `CHECK`: total recebido positivo, saldo disponível não negativo e saldo disponível não maior que o total. O teste de integração consultou o schema conectado e confirmou as três constraints; a consulta de dados encontrou zero lotes que violem essas invariantes. Essa auditoria não executou DDL nem alterou dados.
 
 Decisões pendentes: status “vence em breve” (proposta anterior: até sete dias, inclusive); tratamento físico de vencidos; registro de lote do fornecedor/fabricação/custo; quantidade zero em consulta/alerta.
 
@@ -93,9 +95,11 @@ Decisões pendentes: status “vence em breve” (proposta anterior: até sete d
 
 `StockMovement` exige tipo, data/hora, descrição não vazia e pelo menos um item não nulo. `StockMovementItem` exige lote e quantidade maior que zero. `JdbcStockMovementRepository` grava cabeçalho e itens na conexão recebida.
 
-O `StockMovementService` implementa entrada, venda e perda. Venda/perda envolvem atualização condicional de saldo e gravação do movimento dentro de `TransactionManager.execute`. Entrada recebe `Connection`; no caminho `LotService.save`, o chamador abre a transação para gravar lote e entrada em conjunto.
+`StockMovementService` implementa entrada inicial, entrada adicional, venda e perda. Entrada adicional, venda e perda executam atualização condicional e gravação de movimento/item em `TransactionManager.execute`. No caminho inicial, `LotService.save` abre a transação compartilhada entre lote e movimento. Na entrada adicional, o serviço lê o lote atualizado pela mesma conexão dentro da operação transacional e devolve a representação `ReadOnlyLot`.
 
-Ainda precisa ser definido/testado: quais lotes podem receber perda (somente vencido ou avaria também); ajustes e reversões; histórico consultável; atomicidade sob falha de item parcial; concorrência; comportamento de commit indeterminado e falha de rollback. O rollback da conexão não restaura atributos de entidades Java já mutadas; o modelo atual de `Lot` é imutável.
+`TransactionWork` representa callback sem retorno e `TransactionAction<T>` callback com resultado. `TransactionManager.execute(TransactionWork)` atende operações sem retorno; `<T> executeAndReturn(TransactionAction<T>)` entrega o resultado após commit. Ambos delegam a `JdbcTransactionManager.executeInTransaction`, método privado genérico que abre conexão, configura auto-commit, executa o callback uma vez, confirma e retorna o resultado, ou tenta rollback se ocorrer falha.
+
+Testes de integração verificam commit e rollback dos quatro fluxos de estoque, rollback de itens parciais e falha de rollback suprimida sem substituir a exceção original. O teste de commit falho fecha a conexão dentro do callback antes da confirmação; não simula interrupção depois de o servidor ter confirmado. Abertura/configuração da conexão e falha de `close()` após commit concluído não são injetáveis pela conexão estática. Nesse último cenário, `try-with-resources` pode propagar erro depois do commit; o chamador deve considerar o resultado ambíguo, não uma reversão. Permanecem decisões sobre elegibilidade de perdas, ajustes/reversões e histórico consultável.
 
 ### 5.5 Política futura de saída
 
@@ -119,17 +123,17 @@ Program (terminal)
 | `service` | Serviços de categoria, produto, lote e movimento. |
 | `domain/repository` | Contratos JDBC-facing de categoria, produto, lote e movimento. Alguns contratos expõem `Connection` para operações transacionais. |
 | `infrastructure/persistence/jdbc` | Implementações MariaDB e gerenciador JDBC. |
-| `transaction` | `TransactionManager` e callback `TransactionWork`. |
+| `transaction` | `TransactionManager`, `TransactionWork` (callback sem retorno) e `TransactionAction<T>` (callback com retorno). |
 | `database/` | Cinco scripts SQL em ordem de dependência; scripts não criam banco nem usuário. |
-| `src/test` | JUnit 5; domínio unitário, serviços com fakes e integração com MariaDB. |
+| `src/test` | JUnit 5; domínio unitário, serviços com fakes e classes `*IntegrationTest` para MariaDB. Há testes JDBC dedicados para produto, lote e gerenciador transacional; outros repositories são exercitados pelos fluxos de serviço. |
 
 ## 7. Testes e evidência atual
 
-Última execução registrada em 15/11/2026: `mvn test` — **77 executados, 77 aprovados, nenhuma falha/erro/ignorado**. O teste de integração `LotServiceTest.lotCreationPersistsOnlyInitialQuantityAndEntryMovement` passou no MariaDB local e valida o saldo, movimento, item e reconstituição do lote. A evidência confirma a correção no caminho coberto; ainda falta teste JDBC de entrada adicional e rollback da entrada inicial.
+Última execução registrada em 15/11/2026: `mvn clean test` — **121 executados, 121 aprovados, nenhuma falha/erro/ignorado**. Foram 75 testes unitários e 46 integrações MariaDB. A suíte cobre as operações de `TransactionManager`, atomicidade dos quatro fluxos de estoque, rollback com falha em movimento/item, exceção suprimida de rollback, retorno de lote atualizado, consultas JDBC e quatro cenários concorrentes.
 
-Distribuição por classe, mantida em [meu_progresso.md](meu_progresso.md). Testes com fakes verificam interação/decisões do serviço, não persistência. Testes JDBC usam conexão MariaDB e queries de verificação; cleanup remove apenas dados de teste associados à categoria do caso.
+Distribuição por classe, mantida em [meu_progresso.md](meu_progresso.md). Testes com fakes verificam interação/decisões do serviço, não persistência. Testes JDBC usam conexão MariaDB e queries de verificação; cleanup remove os dados identificados pelos testes. O desenvolvedor informa que `marketcontrol` é o banco local de testes.
 
-Não há ferramenta de cobertura configurada, portanto não há porcentagem de cobertura reportada. Lacunas: falhas de commit/rollback e exceção suprimida, concorrência, falha em inserção de item após cabeçalho, leitura do histórico, comportamento JDBC de erro, perda no banco, entrada com falha e fluxo terminal completo.
+Não há ferramenta de cobertura configurada, portanto não há porcentagem de cobertura reportada. Lacunas: falha ao abrir/configurar conexão; falha de fechamento depois de commit confirmado; JDBC dedicado dos repositories restantes; leitura de histórico; critérios de elegibilidade de perda; e fluxos operacionais completos no terminal. O teste de commit falho fecha deliberadamente a conexão dentro do callback e não representa commit confirmado com falha posterior de close.
 
 ## 8. Roadmap e estimativa percentual
 
@@ -138,10 +142,11 @@ Os percentuais são estimativas qualitativas frente aos critérios desta seção
 | Etapa | Avanço estimado | Critério de conclusão |
 |---|---:|---|
 | Núcleo Java puro: domínio e serviços | **65%** | Regras aceitas, invariantes e fluxos de estoque concluídos, incluindo entrada correta, perda/ajuste e saída multi-lote testadas. |
-| MariaDB/JDBC e transações | **70%** | Persistência completa, consistência/integridade, falhas de SQL, commit/rollback e concorrência comprovados por integração. |
+| MariaDB/JDBC e transações | **70%** | Persistência, atomicidade e concorrência parcial têm evidência de integração; faltam falhas de abertura/configuração/close e testes JDBC dedicados dos repositories restantes. |
 | Terminal | **45%** | Operador percorre cadastro, entrada, venda, perda, ajuste e histórico com erros recuperáveis. |
-| Testes/confiabilidade | **65%** | Suíte aprovada e integração repetível; permanecem cenários críticos a cobrir, como entrada adicional, concorrência e falhas de commit/rollback. |
-| API HTTP Java puro | **0%** | Rotas e contratos documentados; validação, status e erros testados; sem dependência de Spring. |
+| Testes/confiabilidade | **75%** | 121 testes aprovados (75 unitários e 46 integrações). Permanecem lacunas de falhas de conexão e testes JDBC dedicados dos repositories restantes. |
+| Tratamento de erros | **0%** | Próxima etapa oficial; exceções específicas e responsabilidades entre camadas ainda não foram definidas/implementadas. |
+| HTTP nativo do Java | **0%** | Etapa posterior ao tratamento de erros. Ainda não há servidor, rotas ou testes HTTP; o endpoint inicial planejado é `GET /api/health`. |
 | Front-end Angular (plano de IA) | **0%** | Aplicação Angular, integração com HTTP e testes de interface ainda não existem. |
 | Spring Boot v2 | **0%** | Migração comparativa posterior à v1, protegida por testes de comportamento. |
 
@@ -149,15 +154,27 @@ Não há porcentagem agregada do projeto: etapas HTTP, Angular e Spring não com
 
 ## 9. Critérios de pronto por fase
 
-### Fase 1 — Java puro + JDBC + HTTP
+### Próxima etapa — tratamento de erros
+
+- Criar exceções específicas para validação, regras de negócio, recurso ausente e persistência.
+- Definir a responsabilidade de cada camada ao identificar e propagar erros.
+- Preparar os contratos para futura tradução em respostas HTTP.
+- Esta etapa não foi iniciada nesta auditoria.
+
+### Etapa seguinte — HTTP nativo do Java
+
+- Usar servidor HTTP nativo do Java; compreender requisições e respostas e implementar roteamento.
+- Introduzir DTOs e JSON gradualmente; começar por `GET /api/health`.
+- Implementar endpoints e testes HTTP em passos pequenos, sem Spring Boot.
+
+### Fase de consolidação do núcleo Java puro + JDBC
 
 - Definir regras de negócio com Leonardo antes de assumir comportamento novo.
 - Manter domínio e casos de uso desacoplados de terminal, HTTP e JDBC.
-- Manter a criação inicial sem duplicação e provar em MariaDB que lote, saldo, cabeçalho e item correspondem; ampliar a evidência para rollback e entrada adicional.
+- Manter a criação inicial sem duplicação: sucesso e rollback inicial/adicional diante de falha de histórico agora têm evidência MariaDB. Permanecem as limitações de abertura/configuração/close descritas acima.
 - Manter todas as operações compostas atômicas; testar sucesso, falha de repositório, erro de SQL e estado depois da falha.
 - Completar operação multi-lote segundo política escolhida e tratar concorrência.
-- Implementar API HTTP Java puro sem framework; documentar endpoints, validações, erros e exemplos.
-- Ter testes de unidade, integração JDBC e fronteira HTTP; manter suíte repetível.
+- Completar testes de unidade e integração JDBC para os casos acordados; manter suíte repetível.
 - Demonstrar no terminal os casos definidos e conseguir explicar as decisões de arquitetura.
 
 ### Fase 1.5 — Angular
@@ -176,7 +193,7 @@ Não há porcentagem agregada do projeto: etapas HTTP, Angular e Spring não com
 
 1. Produtos pesados são vendidos em kg ou gramas? Qual escala decimal e política de arredondamento?
 2. Como representar embalagem de conteúdo líquido versus venda por litro/ml?
-3. Entrada de estoque cria um lote com saldo inicial ou cria lote zerado e aplica entrada? A regra precisa evitar duplicação.
+3. O modelo atual cria lote com saldo inicial e registra uma entrada adicional em movimento separado; confirmar se esse é o fluxo operacional desejado.
 4. Perda só se aplica a lote vencido ou também cobre avaria, roubo e descarte operacional?
 5. Venda será em um lote ou pode distribuir entre vários? FEFO é a regra desejada?
 6. Qual janela de validade próxima e qual comportamento de lotes vencidos?
