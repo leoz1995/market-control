@@ -62,7 +62,7 @@ class LotServiceIntegrationTest {
         transactionManager = new JdbcTransactionManager();
         StockMovementService movements = new StockMovementService(transactionManager, movementRepository, lotRepository);
         lots = new LotService(products, lotRepository, transactionManager, movements);
-        category = categories.saveCategory("Lot test " + run, null, true);
+        category = categories.saveCategory("Lot test " + run, "Integration test category", true);
         product = products.saveProduct("Test product", run, null, category.getId(), UnitOfMeasure.UNIT);
     }
 

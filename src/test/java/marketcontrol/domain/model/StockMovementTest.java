@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import marketcontrol.exception.data.DataMappingException;
 
 import marketcontrol.domain.model.enums.MovementType;
 
@@ -64,6 +65,6 @@ class StockMovementTest {
     }
 
     @Test void rejectsNullIdDuringReconstitution() {
-        assertThrows(IllegalArgumentException.class, () -> StockMovement.reconstitute(null, MovementType.ENTRY, at, "Descrição", List.of(item)));
+        assertThrows(DataMappingException.class, () -> StockMovement.reconstitute(null, MovementType.ENTRY, at, "Descrição", List.of(item)));
     }
 }

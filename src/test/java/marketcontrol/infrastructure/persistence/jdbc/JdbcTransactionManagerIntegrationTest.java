@@ -136,7 +136,7 @@ class JdbcTransactionManagerIntegrationTest {
                 "INSERT INTO categories (id, name, description, active) VALUES (?, ?, ?, ?)")) {
             statement.setString(1, id.toString());
             statement.setString(2, "Transaction test " + id);
-            statement.setString(3, null);
+            statement.setString(3, "Transaction test category");
             statement.setBoolean(4, true);
             assertEquals(1, statement.executeUpdate());
         } catch (SQLException e) {

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import marketcontrol.exception.data.DataMappingException;
 
 class CategoryTest {
     @Test void createsCategoryWithNormalizedNameAndDescription() {
@@ -16,9 +17,9 @@ class CategoryTest {
         assertTrue(category.isActive());
     }
 
-    @Test void normalizesNullOrBlankDescriptionToNull() {
-        assertNull(Category.create("Mercearia", null, true).getDescription());
-        assertNull(Category.create("Higiene", "   ", false).getDescription());
+    @Test void rejectsMissingOrBlankDescriptionOnCreation() {
+        assertThrows(IllegalArgumentException.class, () -> Category.create("Mercearia", null, true));
+        assertThrows(IllegalArgumentException.class, () -> Category.create("Higiene", "   ", false));
     }
 
     @Test void rejectsNullOrBlankName() {
@@ -51,6 +52,34 @@ class CategoryTest {
                 () -> assertTrue(category.isActive()));
     }
 
+    @Test void keepsExistingDescriptionWhenEditDoesNotProvideANewValue() {
+        Category category = Category.create("Mercearia", "Comida", true);
+
+        category.edit("Mercearia atualizada", null, true);
+
+        assertEquals("Comida", category.getDescription());
+    }
+
+    @Test void keepsExistingDescriptionWhenEditReceivesBlankText() {
+        Category category = Category.create("Mercearia", "Comida", true);
+
+        category.edit("Mercearia atualizada", "  \t ", true);
+
+        assertEquals("Comida", category.getDescription());
+    }
+
+    @Test void rejectsInvalidPersistedNameOrDescriptionDuringReconstitution() {
+        UUID id = UUID.randomUUID();
+
+        assertAll(
+                () -> assertThrows(DataMappingException.class,
+                        () -> Category.reconstitute(id, null, "Descrição", true)),
+                () -> assertThrows(DataMappingException.class,
+                        () -> Category.reconstitute(id, "Nome", null, true)),
+                () -> assertThrows(DataMappingException.class,
+                        () -> Category.reconstitute(id, "Nome", "  ", true)));
+    }
+
     @Test void reconstitutesCategoryWithPersistedIdAndNormalizedValues() {
         UUID id = UUID.randomUUID();
         Category category = Category.reconstitute(id, "  Bebidas ", "  Sucos ", false);
@@ -63,7 +92,7 @@ class CategoryTest {
     }
 
     @Test void rejectsNullIdDuringReconstitution() {
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(DataMappingException.class,
                 () -> Category.reconstitute(null, "Mercearia", null, true));
     }
 }

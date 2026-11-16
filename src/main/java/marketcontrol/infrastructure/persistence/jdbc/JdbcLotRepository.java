@@ -19,6 +19,7 @@ import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 import marketcontrol.domain.repository.LotRepository;
 import marketcontrol.domain.repository.ProductRepository;
 import marketcontrol.exception.PersistenceException;
+import marketcontrol.exception.data.DataMappingException;
 import marketcontrol.infrastructure.database.DatabaseConnection;
 
 public class JdbcLotRepository implements LotRepository{
@@ -55,7 +56,9 @@ public class JdbcLotRepository implements LotRepository{
 			pstm.setBigDecimal(5, lot.getTotalReceivedQuantity());
 			pstm.setBigDecimal(6, lot.getAvailableQuantity());
 			
-			pstm.executeUpdate();
+			int affectedRows = pstm.executeUpdate();
+			if(affectedRows != 1)
+				throw new PersistenceException("A inserção do lote não afetou exatamente uma linha. Linhas afetadas: "+affectedRows);
 		}
 		catch(SQLException e) {
 			throw new PersistenceException("Não foi possível salvar esse lote.", e);
@@ -107,14 +110,7 @@ public class JdbcLotRepository implements LotRepository{
 				try (ResultSet rs = pstm.executeQuery()) {
 
 					while (rs.next()) {
-						UUID uuid = UUID.fromString(rs.getString("id"));
-						LocalDate entry = rs.getObject("entry_date", LocalDate.class);
-						LocalDate expires = rs.getObject("expiration_date", LocalDate.class);
-						BigDecimal totalReceivedQuantity = rs.getBigDecimal("total_received_quantity");
-						BigDecimal availableQuantity = rs.getBigDecimal("available_quantity");
-
-						Lot lot = Lot.reconstitute(uuid, product, entry, expires, totalReceivedQuantity,
-								availableQuantity);
+						Lot lot = mapRow(rs, product);
 						lots.add(lot);
 					}
 				}
@@ -268,10 +264,8 @@ public class JdbcLotRepository implements LotRepository{
 	        }
 
 	        ReadOnlyProduct product = productRepository.findById(conn, productId)
-	            .orElseThrow(() -> new PersistenceException(
-	                "O lote encontrado referencia um produto inexistente.",
-	                new IllegalStateException("Produto associado não encontrado.")
-	            ));
+	            .orElseThrow(() -> new DataMappingException(
+	                "O lote encontrado referencia um produto inexistente."));
 
 	        return Optional.of(Lot.reconstitute(id, product, entry, expires, totalReceived, available));
 		}
@@ -280,5 +274,23 @@ public class JdbcLotRepository implements LotRepository{
 	                "Não foi possível realizar a busca pelo ID do lote.", e
 	            );
 	        }
+	}
+	
+	private Lot mapRow(ResultSet rs, ReadOnlyProduct product) throws SQLException {
+		try {
+	        UUID id = UUID.fromString(rs.getString("id"));
+
+	        LocalDate entry = rs.getObject("entry_date", LocalDate.class);
+	        LocalDate expires = rs.getObject("expiration_date", LocalDate.class);
+
+	        BigDecimal totalReceived = rs.getBigDecimal("total_received_quantity");
+
+	        BigDecimal available = rs.getBigDecimal("available_quantity");
+
+	        return Lot.reconstitute(id, product, entry, expires, totalReceived, available);
+		}
+		catch(IllegalArgumentException e) {
+	        throw new DataMappingException("Falha ao mapear os dados persistidos para a entidade Lot.", e);
+		}
 	}
 }

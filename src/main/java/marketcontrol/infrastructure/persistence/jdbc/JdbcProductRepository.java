@@ -16,6 +16,7 @@ import marketcontrol.domain.model.enums.UnitOfMeasure;
 import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.domain.repository.ProductRepository;
 import marketcontrol.exception.PersistenceException;
+import marketcontrol.exception.data.DataMappingException;
 import marketcontrol.infrastructure.database.DatabaseConnection;
 
 public class JdbcProductRepository implements ProductRepository{
@@ -49,7 +50,7 @@ public class JdbcProductRepository implements ProductRepository{
 			return products;
 		}
 		catch(SQLException e) {
-			throw new PersistenceException("Não foi possível realizar a busca dos produtos.", e);
+			throw new PersistenceException("Falha ao consultar todos os produtos.", e);
 		}
 	}
 	
@@ -64,7 +65,7 @@ public class JdbcProductRepository implements ProductRepository{
 			return findById(conn, id);
 		}
 		catch(SQLException e) {
-			throw new PersistenceException("Não foi possível realizar a busca pelo Id do produto.", e);
+			throw new PersistenceException("Falha ao consultar produto por ID.", e);
 		}
 	}
 	
@@ -105,7 +106,7 @@ public class JdbcProductRepository implements ProductRepository{
 			}
 		}
 		catch(SQLException e) {
-			throw new PersistenceException("Não foi possível realizar a busca pelo Id do produto.", e);
+			throw new PersistenceException("Falha ao consultar produto por ID.", e);
 		}
 	}
 	
@@ -142,7 +143,7 @@ public class JdbcProductRepository implements ProductRepository{
 			}
 		}
 		catch(SQLException e) {
-			throw new PersistenceException("Não foi possível realizar a busca pelo código do produto.", e);
+			throw new PersistenceException("Falha ao consultar produto por código de barras.", e);
 		}
 	}
 
@@ -161,7 +162,7 @@ public class JdbcProductRepository implements ProductRepository{
 			}
 			
 		}catch(SQLException e) {
-			throw new PersistenceException("Não foi possível realizar a busca pelo código do produto.", e);
+			throw new PersistenceException("Falha ao verificar existência de produto por código de barras.", e);
 		}
 	}
 
@@ -184,7 +185,7 @@ public class JdbcProductRepository implements ProductRepository{
 			}
 		}
 		catch(SQLException e) {
-			throw new PersistenceException("Não foi possível verificar a existência de outro produto com esse código.", e);
+			throw new PersistenceException("Falha ao verificar duplicidade de código de barras.", e);
 		}
 	}
 
@@ -205,17 +206,20 @@ public class JdbcProductRepository implements ProductRepository{
 			pstm.setString(5, product.getCategory().getId().toString());
 			pstm.setInt(6, product.getUnit().getCode());
 			
-			pstm.executeUpdate();
+			int affectedRows = pstm.executeUpdate();
+			
+			if(affectedRows != 1) 
+				throw new PersistenceException("A inserção do produto não afetou exatamente uma linha. Linhas afetadas: " + affectedRows);
 		}
 		catch(SQLException e) {
-			throw new PersistenceException("Não foi possível salvar esse produto.", e);
+			throw new PersistenceException("Falha ao inserir produto.", e);
 		}
 	}
 
 	@Override
 	public void update(Product product) {
 		if(product == null)
-			throw new IllegalArgumentException("O produto null não pode ser atualizado. Preencha as informações corretamente!");
+			throw new IllegalArgumentException("O produto não pode ser null.");
 		
 		String sql = "UPDATE products SET name = ?, bar_code = ?, description = ?, category_id = ?, unit = ? WHERE id = ?";
 		
@@ -233,26 +237,43 @@ public class JdbcProductRepository implements ProductRepository{
 			
 		}
 		catch(SQLException e) {
-			throw new PersistenceException("Não foi possível atualizar o produto.", e);
+			throw new PersistenceException("Falha ao atualizar produto.", e);
 		}
 	}
 
 	private Product mapRow(ResultSet rs) throws SQLException {
-		UUID id = UUID.fromString(rs.getString("id"));
-		String name = rs.getString("name");
-		String barCode = rs.getString("bar_code");
-		String description = rs.getString("description");
+		try {
+			String idValue = rs.getString("id");
+			
+			if(idValue == null)
+				throw new DataMappingException("O ID do produto persistido é null.");
+			
+			UUID id = UUID.fromString(idValue);
+			String name = rs.getString("name");
+			String barCode = rs.getString("bar_code");
+			String description = rs.getString("description");
 
-		UUID categoryId = UUID.fromString(rs.getString("category_id"));
-		String categoryName = rs.getString("category_name");
-		String categoryDescription = rs.getString("category_description");
-		boolean categoryActive = rs.getBoolean("category_active");
+			String idCategoryValue = rs.getString("category_id");
+			
+			if(idCategoryValue == null)
+				throw new DataMappingException("O ID da categoria persistida é null.");
+			
+			UUID categoryId = UUID.fromString(idCategoryValue);
+			
+			String categoryName = rs.getString("category_name");
+			String categoryDescription = rs.getString("category_description");
+			Boolean categoryActive = rs.getObject("category_active", Boolean.class);
 
-		ReadOnlyCategory cat = Category.reconstitute(categoryId, categoryName, categoryDescription, categoryActive);
+			ReadOnlyCategory cat = Category.reconstitute(categoryId, categoryName, categoryDescription, categoryActive);
 
-		int unitCode = rs.getInt("unit");
-		UnitOfMeasure unit = UnitOfMeasure.fromCode(unitCode);
+			Integer unitCode = rs.getObject("unit", Integer.class);
+			
+			UnitOfMeasure unit = unitCode == null ? null : UnitOfMeasure.fromCode(unitCode);
 
-		return Product.reconstitute(id, name, barCode, description, cat, unit);
+			return Product.reconstitute(id, name, barCode, description, cat, unit);
+		}
+		catch(IllegalArgumentException e) {
+			throw new DataMappingException("Falha ao mapear os dados persistidos para a entidade Product.", e);
+		}
 	}
 }

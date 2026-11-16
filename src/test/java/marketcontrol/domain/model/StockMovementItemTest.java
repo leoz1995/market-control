@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import marketcontrol.exception.data.DataMappingException;
 
 class StockMovementItemTest {
     @Test void createsItemWithPositiveQuantity() {
@@ -38,7 +39,7 @@ class StockMovementItemTest {
     @Test void rejectsNullIdentifiersDuringReconstitution() {
         UUID lotId = UUID.randomUUID();
         UUID itemId = UUID.randomUUID();
-        assertThrows(IllegalArgumentException.class, () -> StockMovementItem.reconstitute(null, lotId, BigDecimal.ONE));
-        assertThrows(IllegalArgumentException.class, () -> StockMovementItem.reconstitute(itemId, null, BigDecimal.ONE));
+        assertThrows(DataMappingException.class, () -> StockMovementItem.reconstitute(null, lotId, BigDecimal.ONE));
+        assertThrows(DataMappingException.class, () -> StockMovementItem.reconstitute(itemId, null, BigDecimal.ONE));
     }
 }

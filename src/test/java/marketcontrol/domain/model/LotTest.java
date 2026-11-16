@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import marketcontrol.exception.data.DataMappingException;
 
 import marketcontrol.domain.model.enums.UnitOfMeasure;
 
@@ -81,44 +82,44 @@ class LotTest {
     }
 
     @Test void rejectsNullIdDuringReconstitution() {
-        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(null, product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE, BigDecimal.ONE));
+        assertThrows(DataMappingException.class, () -> Lot.reconstitute(null, product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE, BigDecimal.ONE));
     }
 
     @Test void rejectsNullProductDuringReconstitution() {
-        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), null, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE, BigDecimal.ONE));
+        assertThrows(DataMappingException.class, () -> Lot.reconstitute(UUID.randomUUID(), null, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE, BigDecimal.ONE));
     }
 
     @Test void rejectsNullEntryDateDuringReconstitution() {
-        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, null, LocalDate.now().plusDays(1), BigDecimal.ONE, BigDecimal.ONE));
+        assertThrows(DataMappingException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, null, LocalDate.now().plusDays(1), BigDecimal.ONE, BigDecimal.ONE));
     }
 
     @Test void rejectsNullExpirationDateDuringReconstitution() {
-        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), null, BigDecimal.ONE, BigDecimal.ONE));
+        assertThrows(DataMappingException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), null, BigDecimal.ONE, BigDecimal.ONE));
     }
 
     @Test void rejectsExpirationBeforeEntryDuringReconstitution() {
         LocalDate today = LocalDate.now();
-        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, today, today.minusDays(1), BigDecimal.ONE, BigDecimal.ONE));
+        assertThrows(DataMappingException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, today, today.minusDays(1), BigDecimal.ONE, BigDecimal.ONE));
     }
 
     @Test void rejectsNullInitialQuantityDuringReconstitution() {
-        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), LocalDate.now().plusDays(1), null, BigDecimal.ZERO));
+        assertThrows(DataMappingException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), LocalDate.now().plusDays(1), null, BigDecimal.ZERO));
     }
 
     @Test void rejectsNullAvailableQuantityDuringReconstitution() {
-        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE, null));
+        assertThrows(DataMappingException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE, null));
     }
 
     @Test void rejectsNegativeAvailableQuantityDuringReconstitution() {
-        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE, new BigDecimal("-1")));
+        assertThrows(DataMappingException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE, new BigDecimal("-1")));
     }
 
     @Test void rejectsAvailableQuantityAboveInitialDuringReconstitution() {
-        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE, new BigDecimal("2")));
+        assertThrows(DataMappingException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE, new BigDecimal("2")));
     }
 
     @Test void rejectsNonPositiveInitialQuantityDuringReconstitution() {
-        assertThrows(IllegalArgumentException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ZERO, BigDecimal.ZERO));
+        assertThrows(DataMappingException.class, () -> Lot.reconstitute(UUID.randomUUID(), product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ZERO, BigDecimal.ZERO));
     }
 
     @Test void reportsExpiredOnlyWhenExpirationIsBeforeToday() {

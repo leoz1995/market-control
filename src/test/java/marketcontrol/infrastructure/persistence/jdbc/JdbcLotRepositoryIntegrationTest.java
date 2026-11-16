@@ -17,6 +17,7 @@ import marketcontrol.DatabaseTestCleanup;
 import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.domain.model.interfaces.ReadOnlyLot;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
+import marketcontrol.domain.model.Lot;
 import marketcontrol.domain.model.enums.UnitOfMeasure;
 import marketcontrol.infrastructure.database.DatabaseConnection;
 import marketcontrol.service.CategoryService;
@@ -36,7 +37,7 @@ class JdbcLotRepositoryIntegrationTest {
     @BeforeEach void setUp() {
         CategoryService categories = new CategoryService(new JdbcCategoryRepository());
         ProductService products = new ProductService(new JdbcProductRepository(), categories);
-        category = categories.saveCategory("Jdbc lot " + run, null, true);
+        category = categories.saveCategory("Jdbc lot " + run, "Integration test category", true);
         product = products.saveProduct("Lot lookup product", run, null, category.getId(), UnitOfMeasure.UNIT);
         repository = new JdbcLotRepository(new JdbcProductRepository());
         var transactionManager = new JdbcTransactionManager();
@@ -87,6 +88,98 @@ class JdbcLotRepositoryIntegrationTest {
                 () -> assertEquals(0, new BigDecimal("4.250").compareTo(found.orElseThrow().getTotalReceivedQuantity())),
                 () -> assertEquals(0, new BigDecimal("4.250").compareTo(found.orElseThrow().getAvailableQuantity())),
                 () -> assertTrue(productLots.stream().anyMatch(lot -> lot.getId().equals(created.getId()))));
+    }
+
+    @Test void savesLotWithCallerConnectionAndLeavesConnectionOpen() throws Exception {
+        LocalDate today = LocalDate.now();
+        Lot lot = Lot.create(product, today, today.plusDays(5), new BigDecimal("8.500"));
+
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            repository.save(connection, lot);
+            assertFalse(connection.isClosed(), "save(Connection, Lot) must not close the caller connection");
+            var persisted = repository.findById(connection, lot.getId()).orElseThrow();
+            assertAll(
+                    () -> assertEquals(product.getId(), persisted.getProduct().getId()),
+                    () -> assertEquals(0, new BigDecimal("8.500").compareTo(persisted.getTotalReceivedQuantity())),
+                    () -> assertEquals(0, new BigDecimal("8.500").compareTo(persisted.getAvailableQuantity())),
+                    () -> assertFalse(connection.isClosed()));
+        }
+    }
+
+    @Test void findsMultipleLotsAndReturnsEmptyListForProductWithoutLots() {
+        ReadOnlyLot first = lots.save(product.getId(), LocalDate.now(), LocalDate.now().plusDays(3), new BigDecimal("2"));
+        ReadOnlyLot second = lots.save(product.getId(), LocalDate.now(), LocalDate.now().plusDays(4), new BigDecimal("3"));
+        ReadOnlyProduct productWithoutLots = new ProductService(new JdbcProductRepository(), new CategoryService(new JdbcCategoryRepository()))
+                .saveProduct("No lot product", run + "-EMPTY", null, category.getId(), UnitOfMeasure.UNIT);
+
+        var found = repository.findByProductId(product.getId());
+
+        assertEquals(2, found.size());
+        assertTrue(found.stream().anyMatch(lot -> lot.getId().equals(first.getId())));
+        assertTrue(found.stream().anyMatch(lot -> lot.getId().equals(second.getId())));
+        assertTrue(repository.findByProductId(productWithoutLots.getId()).isEmpty(),
+                "A persisted product with no lots should return an empty list");
+    }
+
+    @Test void rejectsUnknownProductWhenFindingLots() {
+        assertThrows(IllegalArgumentException.class, () -> repository.findByProductId(UUID.randomUUID()));
+    }
+
+    @Test void sumsAvailableNonExpiredQuantityAndReturnsZeroWhenThereAreNoLots() {
+        assertEquals(0, BigDecimal.ZERO.compareTo(repository.getTotalAvailableQuantity(product.getId())));
+        ReadOnlyLot active = lots.save(product.getId(), LocalDate.now(), LocalDate.now().plusDays(1), new BigDecimal("5"));
+        ReadOnlyLot expired = lots.save(product.getId(), LocalDate.now().minusDays(3), LocalDate.now().minusDays(1), new BigDecimal("7"));
+        movements.registerSale(active.getId(), new BigDecimal("2"));
+
+        assertEquals(0, new BigDecimal("3").compareTo(repository.getTotalAvailableQuantity(product.getId())));
+        movements.registerSale(active.getId(), new BigDecimal("3"));
+        assertEquals(0, BigDecimal.ZERO.compareTo(repository.getTotalAvailableQuantity(product.getId())),
+                "A zero balance contributes zero and expired stock is excluded");
+        assertEquals(0, new BigDecimal("7").compareTo(repository.findById(expired.getId()).orElseThrow().getAvailableQuantity()));
+    }
+
+    @Test void updatesAdditionalEntrySaleAndLossQuantitiesInDatabase() throws Exception {
+        ReadOnlyLot lot = lots.save(product.getId(), LocalDate.now(), LocalDate.now().plusDays(5), new BigDecimal("10"));
+
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            assertEquals(1, repository.increaseAvailableQuantityForAdditionalEntry(connection, lot.getId(), new BigDecimal("4")));
+            assertEquals(1, repository.decreaseAvailableQuantityForSale(connection, lot.getId(), new BigDecimal("3")));
+            assertEquals(1, repository.decreaseAvailableQuantityForLoss(connection, lot.getId(), new BigDecimal("2")));
+            var persisted = repository.findById(connection, lot.getId()).orElseThrow();
+            assertAll(
+                    () -> assertEquals(0, new BigDecimal("14").compareTo(persisted.getTotalReceivedQuantity())),
+                    () -> assertEquals(0, new BigDecimal("9").compareTo(persisted.getAvailableQuantity())),
+                    () -> assertFalse(connection.isClosed()));
+        }
+    }
+
+    @Test void stockUpdatesReturnZeroForInsufficientQuantityExpiredOrMissingLot() throws Exception {
+        ReadOnlyLot lot = lots.save(product.getId(), LocalDate.now(), LocalDate.now().plusDays(5), new BigDecimal("4"));
+        ReadOnlyLot expired = lots.save(product.getId(), LocalDate.now().minusDays(3), LocalDate.now().minusDays(1), new BigDecimal("4"));
+
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            assertEquals(0, repository.decreaseAvailableQuantityForSale(connection, lot.getId(), new BigDecimal("5")));
+            assertEquals(0, repository.decreaseAvailableQuantityForSale(connection, expired.getId(), BigDecimal.ONE));
+            assertEquals(0, repository.decreaseAvailableQuantityForLoss(connection, UUID.randomUUID(), BigDecimal.ONE));
+            assertEquals(0, repository.increaseAvailableQuantityForAdditionalEntry(connection, UUID.randomUUID(), BigDecimal.ONE));
+            assertEquals(0, new BigDecimal("4").compareTo(repository.findById(connection, lot.getId()).orElseThrow().getAvailableQuantity()));
+        }
+    }
+
+    @Test void rejectsInvalidStockUpdateArguments() throws Exception {
+        try (Connection connection = DatabaseConnection.getConnection()) {
+            assertAll(
+                    () -> assertThrows(IllegalArgumentException.class, () -> repository.save(null, Lot.create(product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE))),
+                    () -> assertThrows(IllegalArgumentException.class, () -> repository.save(connection, null)),
+                    () -> assertThrows(IllegalArgumentException.class, () -> repository.findById((UUID) null)),
+                    () -> assertThrows(IllegalArgumentException.class, () -> repository.findById(null, UUID.randomUUID())),
+                    () -> assertThrows(IllegalArgumentException.class, () -> repository.findByProductId(null)),
+                    () -> assertThrows(IllegalArgumentException.class, () -> repository.getTotalAvailableQuantity(null)),
+                    () -> assertThrows(IllegalArgumentException.class, () -> repository.decreaseAvailableQuantityForSale(null, UUID.randomUUID(), BigDecimal.ONE)),
+                    () -> assertThrows(IllegalArgumentException.class, () -> repository.decreaseAvailableQuantityForLoss(connection, null, BigDecimal.ONE)),
+                    () -> assertThrows(IllegalArgumentException.class, () -> repository.increaseAvailableQuantityForAdditionalEntry(connection, UUID.randomUUID(), null)),
+                    () -> assertThrows(IllegalArgumentException.class, () -> repository.decreaseAvailableQuantityForSale(connection, UUID.randomUUID(), BigDecimal.ZERO)));
+        }
     }
 
     @Test void persistedLotsRespectQuantityChecksAndHaveNoInvalidRows() throws Exception {

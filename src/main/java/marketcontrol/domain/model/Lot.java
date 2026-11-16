@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import marketcontrol.domain.model.interfaces.ReadOnlyLot;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
+import marketcontrol.exception.data.DataMappingException;
 
 public class Lot implements ReadOnlyLot{
 
@@ -54,34 +55,28 @@ public class Lot implements ReadOnlyLot{
 	public static Lot reconstitute(UUID id, ReadOnlyProduct product, LocalDate entryDate, LocalDate expirationDate, BigDecimal totalReceivedQuantity, BigDecimal availableQuantity) {
 	
 		if(id == null)
-			throw new IllegalArgumentException("O ID não pode ser null.");
+	        throw new DataMappingException("O ID do lote persistido é inválido.");
 
 		if(product == null)
-			throw new IllegalArgumentException("O produto não existe.");
+	        throw new DataMappingException("O produto associado ao lote não foi encontrado.");
 		
-		if(entryDate == null)
-			throw new IllegalArgumentException("A data de entrada não pode ser null.");
-		
-		if(expirationDate == null)
-			throw new IllegalArgumentException("A data de validade não pode ser null.");
+		if(entryDate == null || expirationDate == null)
+	        throw new DataMappingException("As datas do lote persistido são inválidas.");
 		
 		if(expirationDate.isBefore(entryDate))
-			throw new IllegalArgumentException("A validade não pode ser antes da entrada.");
+			throw new DataMappingException("A validade do lote persistido não pode ser antes da entrada.");
 		
-		if(availableQuantity == null)
-			throw new IllegalArgumentException("A quantidade disponível não pode ser null.");
-		
-		if(totalReceivedQuantity == null)
-			throw new IllegalArgumentException("A quantidade total recebida precisa ser válida.");
+		if(availableQuantity == null || totalReceivedQuantity == null)
+			throw new DataMappingException("As quantidade total ou disponível do lote persistido não pode ser inválido.");
 		
 		if(availableQuantity.compareTo(BigDecimal.ZERO) < 0)
-		    throw new IllegalArgumentException("Estoque disponível não pode ser negativo.");
+		    throw new DataMappingException("O estoque total do lote persistido não pode ser negativo.");
 
 		if(availableQuantity.compareTo(totalReceivedQuantity) > 0)
-		    throw new IllegalArgumentException("Estoque disponível não pode superar o estoque total.");
+		    throw new DataMappingException("A quantidade disponível do lote persistido não pode superar o total já recebido.");
 		
 		if(totalReceivedQuantity.compareTo(BigDecimal.ZERO) <= 0)
-			throw new IllegalArgumentException("A quantidade de estoque total precisa ser maior que zero.");
+			throw new DataMappingException("A quantidade total do lote persistido precisa ser maior que zero.");
 
 		return new Lot(id, product, entryDate, expirationDate, totalReceivedQuantity, availableQuantity);
 	}

@@ -24,11 +24,12 @@ class CategoryServiceIntegrationTest {
         assertEquals("Nome " + run, service.findById(category.getId()).getName());
     }
 
-    @Test void shouldEditCategoryAndReplaceDescriptionWithNull() {
+    @Test void shouldEditCategoryAndPreserveDescriptionWhenNullIsProvided() {
         ReadOnlyCategory category = created = service.saveCategory("Beans " + run, "Feijão", true);
         ReadOnlyCategory edited = service.editCategory(category.getId(), "BeansTwo " + run, null, false);
         assertEquals("BeansTwo " + run, edited.getName());
-        assertNull(edited.getDescription());
+        assertEquals("Feijão", edited.getDescription());
+        assertEquals("Feijão", service.findById(category.getId()).getDescription());
         assertFalse(edited.isActive());
     }
 }

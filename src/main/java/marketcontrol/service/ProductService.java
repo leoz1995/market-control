@@ -58,7 +58,9 @@ public class ProductService {
 		if(productRepository.existsByBarCodeAndIdNot(normalizedBarCode, uuid))
 			throw new IllegalArgumentException("Esse código de barra já está em uso por outro produto.");
 
-		ReadOnlyCategory category = categoryService.findById(dto.categoryId());
+		ReadOnlyCategory category = product.getCategory();
+		if(dto.categoryId() != null)
+			category = categoryService.findById(dto.categoryId());
 		
 		product.edit(dto.name(), normalizedBarCode, dto.description(), category);
 		

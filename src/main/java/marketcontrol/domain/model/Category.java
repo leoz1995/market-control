@@ -3,6 +3,7 @@ package marketcontrol.domain.model;
 import java.util.UUID;
 
 import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
+import marketcontrol.exception.data.DataMappingException;
 
 public class Category implements ReadOnlyCategory{
 	private final UUID id;
@@ -19,40 +20,43 @@ public class Category implements ReadOnlyCategory{
 
 	public static Category create(String name, String description, boolean active) {
 		validateName(name);
-				
-		String cleanDescription = cleanDescription(description);
 		
-		return new Category(UUID.randomUUID(), name.trim(), cleanDescription, active);
+		if(description == null || description.isBlank())
+			throw new IllegalArgumentException("A descrição da categoria é obrigatório.");
+		
+		return new Category(UUID.randomUUID(), name.trim(), description.trim(), active);
 	}
 	
 	public void edit(String name, String description, boolean active) {
 		validateName(name);
 		
-		String cleanDescription = cleanDescription(description);
+		String descriptionValid;
+		if(description == null || description.isBlank())
+			descriptionValid = getDescription();
+		else 
+			descriptionValid = description.trim();
 		
 		this.name = name.trim();
-		this.description = cleanDescription;
+		this.description = descriptionValid;
 		this.active = active;
 	}
 
 	public static Category reconstitute(UUID id, String name, String description, boolean active) {
 		if(id == null)
-			throw new IllegalArgumentException("O ID da categoria é obrigatório.");
+			throw new DataMappingException("O ID da categoria persistida é obrigatório.");
 		
-		validateName(name);
+		if(name == null || name.isBlank())
+			throw new DataMappingException("O nome da categoria persistida é obrigatório.");
+
+		if(description == null || description.isBlank())
+			throw new DataMappingException("A descrição da categoria persistida é obrigatório.");
 		
-		String cleanDescription = cleanDescription(description);
-		
-		return new Category(id, name.trim(), cleanDescription, active);
+		return new Category(id, name.trim(), description.trim(), active);
 	}
 	
 	private static void validateName(String name) {
 		if(name == null || name.isBlank())
 			throw new IllegalArgumentException("O nome da categoria é obrigatório.");
-	}
-	
-	private static String cleanDescription(String description) {
-		return (description == null || description.isBlank()) ? null : description.trim();
 	}
 	
 	public UUID getId() {

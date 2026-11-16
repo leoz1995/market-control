@@ -29,7 +29,7 @@ class StockMovementServiceTest {
         Connection connection = proxyConnection();
         FakeLots lots = new FakeLots(1);
         Lot updatedLot = Lot.reconstitute(lotId,
-                Product.create("Product", "BARCODE-" + lotId, null, Category.create("Category", null, true), UnitOfMeasure.UNIT),
+                Product.create("Product", "BARCODE-" + lotId, null, Category.create("Category", "Test category description", true), UnitOfMeasure.UNIT),
                 java.time.LocalDate.now(), java.time.LocalDate.now().plusDays(3), new BigDecimal("15"), new BigDecimal("15"));
         lots.lotToReturn = updatedLot;
         AtomicReference<Connection> updatedOn = new AtomicReference<>();

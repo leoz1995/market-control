@@ -18,6 +18,7 @@ class ProductServiceIntegrationTest {
     private ProductService service;
     private CategoryService categories;
     private ReadOnlyCategory category;
+    private ReadOnlyCategory alternateCategory;
     private final String run = UUID.randomUUID().toString().substring(0, 8);
 
     @BeforeEach void setUp() {
@@ -25,7 +26,10 @@ class ProductServiceIntegrationTest {
         service = new ProductService(new JdbcProductRepository(), categories);
         category = categories.saveCategory("Feijão " + run, "Alimentação", true);
     }
-    @AfterEach void cleanUp() { if (category != null) DatabaseTestCleanup.deleteCategory(category.getId()); }
+    @AfterEach void cleanUp() {
+        if (category != null) DatabaseTestCleanup.deleteCategory(category.getId());
+        if (alternateCategory != null) DatabaseTestCleanup.deleteCategory(alternateCategory.getId());
+    }
     private ReadOnlyProduct add(String name, String code) {
         return service.saveProduct(name, run + code, null, category.getId(), UnitOfMeasure.UNIT);
     }
@@ -69,6 +73,38 @@ class ProductServiceIntegrationTest {
         assertThrows(IllegalArgumentException.class, () -> service.editProduct(product.getId(), null));
         assertThrows(IllegalArgumentException.class, () -> service.editProduct(UUID.randomUUID(), update("New", "222")));
         assertThrows(IllegalArgumentException.class, () -> service.editProduct(product.getId(), update("New", " ")));
+    }
+
+    @Test void preservesExistingCategoryWhenEditDoesNotSpecifyANewCategory() {
+        ReadOnlyProduct original = add("Iphone 17", "111");
+        ProductDTO updateWithoutCategory = new ProductDTO("Updated name", run + "333", null, null, UnitOfMeasure.UNIT);
+
+        ReadOnlyProduct edited = service.editProduct(original.getId(), updateWithoutCategory);
+
+        assertEquals(category.getId(), edited.getCategory().getId());
+        assertEquals(category.getId(), service.findById(original.getId()).getCategory().getId());
+    }
+
+    @Test void editsProductToAnotherExistingCategoryAndPersistsIt() {
+        ReadOnlyProduct original = add("Iphone 17", "444");
+        alternateCategory = categories.saveCategory("Eletrônicos " + run, "Produtos eletrônicos", true);
+        ProductDTO updateWithCategory = new ProductDTO("Updated name", run + "555", null,
+                alternateCategory.getId(), UnitOfMeasure.UNIT);
+
+        ReadOnlyProduct edited = service.editProduct(original.getId(), updateWithCategory);
+
+        assertEquals(alternateCategory.getId(), edited.getCategory().getId());
+        assertEquals(alternateCategory.getId(), service.findById(original.getId()).getCategory().getId());
+    }
+
+    @Test void rejectsEditWithUnknownCategoryId() {
+        ReadOnlyProduct original = add("Iphone 17", "666");
+        ProductDTO updateWithUnknownCategory = new ProductDTO("Updated name", run + "777", null,
+                UUID.randomUUID(), UnitOfMeasure.UNIT);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.editProduct(original.getId(), updateWithUnknownCategory));
+        assertEquals(category.getId(), service.findById(original.getId()).getCategory().getId());
     }
 
 }

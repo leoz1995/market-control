@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import marketcontrol.domain.model.enums.MovementType;
+import marketcontrol.exception.data.DataMappingException;
 
 public class StockMovement {
 
@@ -24,22 +25,6 @@ public class StockMovement {
 	
 	public static StockMovement create(MovementType type, LocalDateTime dateTime, String description, List<StockMovementItem> smi)
 	{	
-		checkMovements(type, dateTime, description, smi);
-
-		return new StockMovement(UUID.randomUUID(), type, dateTime, description, smi);
-	}
-
-	public static StockMovement reconstitute(UUID id, MovementType type, LocalDateTime dateTime, String description, List<StockMovementItem> smi) {
-
-		if(id == null)
-			throw new IllegalArgumentException("O ID da movimentação é obrigatório.");
-		
-		checkMovements(type, dateTime, description, smi);
-
-		return new StockMovement(id, type, dateTime, description, smi);
-	}
-	
-	private static void checkMovements(MovementType type, LocalDateTime dateTime, String description, List<StockMovementItem> smi) {
 		if(type == null)
 			throw new IllegalArgumentException("O tipo da movimentação precisa ser definida.");
 		
@@ -57,6 +42,34 @@ public class StockMovement {
 		
 		if(smi.stream().anyMatch(items -> items == null))
 			throw new IllegalArgumentException("A lista não pode ter movimentações null.");
+
+		return new StockMovement(UUID.randomUUID(), type, dateTime, description, smi);
+	}
+
+	public static StockMovement reconstitute(UUID id, MovementType type, LocalDateTime dateTime, String description, List<StockMovementItem> smi) {
+
+		if(id == null)
+			throw new DataMappingException("O ID da movimentação persistida é obrigatório.");
+		
+		if(type == null)
+			throw new DataMappingException("O tipo da movimentação persistida precisa ser definida.");
+		
+		if(dateTime == null)
+			throw new DataMappingException("A data da movimentação persistida precisa ser definida.");
+
+		if(description == null || description.isBlank())
+			throw new DataMappingException("A descrição da movimentação persistida precisa ser definida.");
+
+		if(smi == null)
+			throw new DataMappingException("A lista da movimentação persistida precisa ser inclusa.");
+		
+		if(smi.isEmpty())
+			throw new DataMappingException("A lista da movimentação persistida não pode ser vazia.");
+		
+		if(smi.stream().anyMatch(items -> items == null))
+			throw new DataMappingException("A lista não pode ter movimentações persistida null.");
+
+		return new StockMovement(id, type, dateTime, description, smi);
 	}
 	
 	public UUID getId() {

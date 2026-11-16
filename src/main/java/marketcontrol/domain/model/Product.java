@@ -6,6 +6,7 @@ import java.util.UUID;
 import marketcontrol.domain.model.enums.UnitOfMeasure;
 import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
+import marketcontrol.exception.data.DataMappingException;
 
 public class Product implements ReadOnlyProduct{
 	private final UUID id;
@@ -88,19 +89,19 @@ public class Product implements ReadOnlyProduct{
 	
 	public static Product reconstitute(UUID id, String name, String barCode, String description, ReadOnlyCategory category, UnitOfMeasure unit) {
 		if(id == null)
-			throw new IllegalArgumentException("O ID do produto é obrigatório.");
+			throw new DataMappingException("O ID do produto persistido é obrigatório.");
 		
 		if(name == null || name.isBlank())
-			throw new IllegalArgumentException("O nome do produto é obrigatório.");
+			throw new DataMappingException("O nome do produto persistido é obrigatório.");
 		
 		if(barCode == null || barCode.isBlank())
-			throw new IllegalArgumentException("O código de barras é obrigatório.");
+			throw new DataMappingException("O código de barras persistido é obrigatório.");
 		
 		if(category == null)
-			throw new IllegalArgumentException("A categoria é obrigatória.");
+			throw new DataMappingException("A categoria persistida é obrigatória.");
 		
 		if(unit == null)
-			throw new IllegalArgumentException("A unidade de medida é obrigatória.");
+			throw new DataMappingException("A unidade de medida persistida é obrigatória.");
 		
 		String cleanName = name.trim();
 		String cleanBarCode = barCode.trim().toUpperCase(Locale.ROOT);
