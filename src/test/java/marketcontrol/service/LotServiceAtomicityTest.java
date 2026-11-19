@@ -28,7 +28,7 @@ class LotServiceAtomicityTest {
         AtomicReference<Connection> movementConnection = new AtomicReference<>();
         Connection connection = proxyConnection();
         FakeLots lots = new FakeLots(lotId, lotConnection, 1);
-        StockMovementRepository movements = (conn, movement) -> movementConnection.set(conn);
+        StockMovementRepository movements = movementRepository(movementConnection::set, false);
         StockMovementService service = new StockMovementService(new FakeTransactionManager(connection), movements, lots);
 
         service.registerSale(lotId, new BigDecimal("10"));
@@ -44,9 +44,7 @@ class LotServiceAtomicityTest {
         AtomicBoolean rollbackPath = new AtomicBoolean();
         Connection connection = proxyConnection();
         FakeLots lots = new FakeLots(lotId, capturedConnection, 1);
-        StockMovementRepository movements = (conn, movement) -> {
-            throw new IllegalStateException("simulated movement repository failure");
-        };
+        StockMovementRepository movements = movementRepository(ignored -> {}, true);
         TransactionManager simulatedTransaction = new TransactionManager() {
             @Override public <T> T executeAndReturn(marketcontrol.transaction.TransactionAction<T> action) {
                 return action.execute(connection);
@@ -75,7 +73,7 @@ class LotServiceAtomicityTest {
         AtomicReference<Connection> capturedConnection = new AtomicReference<>();
         AtomicBoolean movementSaved = new AtomicBoolean();
         FakeLots lots = new FakeLots(lotId, capturedConnection, 0);
-        StockMovementRepository movements = (conn, movement) -> movementSaved.set(true);
+        StockMovementRepository movements = movementRepository(ignored -> movementSaved.set(true), false);
         StockMovementService service = new StockMovementService(new FakeTransactionManager(proxyConnection()), movements, lots);
 
         assertThrows(IllegalArgumentException.class, () -> service.registerSale(lotId, BigDecimal.ONE));
@@ -96,7 +94,7 @@ class LotServiceAtomicityTest {
                 transactionStarted.set(true);
                 work.execute(proxyConnection());
             }
-        }, (conn, movement) -> {}, lots);
+        }, movementRepository(ignored -> {}, false), lots);
 
         assertThrows(IllegalArgumentException.class, () -> service.registerSale(lots.lotId, BigDecimal.ZERO));
         assertFalse(transactionStarted.get());
@@ -105,6 +103,22 @@ class LotServiceAtomicityTest {
     private static Connection proxyConnection() {
         return (Connection) Proxy.newProxyInstance(Connection.class.getClassLoader(), new Class<?>[] { Connection.class },
                 (proxy, method, args) -> null);
+    }
+
+    private static StockMovementRepository movementRepository(java.util.function.Consumer<Connection> saved, boolean failSave) {
+        return new StockMovementRepository() {
+            public void save(Connection conn, StockMovement movement) {
+                if (failSave) throw new IllegalStateException("simulated movement repository failure");
+                saved.accept(conn);
+            }
+            public void saveInitialEntry(Connection conn, StockMovement movement) {
+                if (failSave) throw new IllegalStateException("simulated movement repository failure");
+                saved.accept(conn);
+            }
+            public Optional<BigDecimal> findInitialEntryByLotId(Connection conn, UUID lotId) {
+                return Optional.of(new BigDecimal("2.50"));
+            }
+        };
     }
 
     private static final class FakeLots implements LotRepository {
@@ -119,7 +133,8 @@ class LotServiceAtomicityTest {
             this.affectedRows = affectedRows;
         }
 
-        public void save(Connection conn, marketcontrol.domain.model.Lot lot) {}
+        public void saveWithInitialEntry(Connection conn, marketcontrol.domain.model.Lot lot,
+                marketcontrol.domain.model.interfaces.ReadOnlySupplier supplier, BigDecimal unitCost) {}
         public Optional<marketcontrol.domain.model.Lot> findById(UUID id) { return Optional.empty(); }
         public Optional<ReadOnlyLot> findById(Connection conn, UUID id) { return Optional.empty(); }
         public List<marketcontrol.domain.model.Lot> findByProductId(UUID productId) { return List.of(); }

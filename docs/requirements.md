@@ -1,228 +1,142 @@
 # MarketControl — requisitos e estado funcional
 
-> Atualizado em **18/11/2026** após inspeção do código atual e execução de `mvn clean test` com acesso ao MariaDB local de testes. Este documento separa decisões de domínio, funcionalidades existentes e itens planejados. Um requisito estar descrito aqui não significa que esteja implementado.
+> Revisado em 18/11/2026 após inspeção do repositório, bootstrap descartável, migrations 07/08 aplicadas no MariaDB local e suíte executada com a conta restrita da aplicação. Requisitos planejados não são funcionalidades implementadas.
 
-## 1. Objetivo
+## 1. Objetivo e nível atual
 
-Construir gradualmente um sistema de controle de estoque para mercado, praticando engenharia de software em Java: domínio, JDBC/MariaDB, transações, testes, HTTP e, mais adiante, uma interface independente.
+MarketControl é um projeto educacional de controle de estoque, feito em Java 25, JDBC e MariaDB. O núcleo cobre categorias, produtos, fornecedores, lotes, entradas, vendas e perdas. A arquitetura separa domínio, serviços, repositórios, infraestrutura JDBC e transações, sem Spring ou ORM.
 
-O estado atual é uma aplicação Java de terminal, com domínio, serviços e persistência JDBC. Não há API HTTP, frontend, autenticação ou deploy. Para configuração, comandos, arquitetura detalhada e evidência dos testes, consulte o [README](../README.md).
+**Nível do projeto:** intermediário em maturidade técnica de um backend educacional/pré-MVP. Já há persistência relacional, atomicidade observável e testes concorrentes reais. Ainda não é produto operacional: falta API, segurança, consulta de histórico, configuração por ambiente e CI.
 
-## 2. Decisões de domínio estabelecidas
+## 2. Regras de domínio
 
-### 2.1 Produto, categoria e unidade
+### Produto, categoria e unidade
 
-- Produto pertence a uma categoria e possui nome, código de barras, descrição opcional e unidade.
-- Categorias possuem nome, descrição e estado ativo.
-- Códigos de barras são normalizados em caixa alta e comparados sem espaços nas pontas pelo fluxo de serviço/repositório.
-- Unidade é um código persistido do enum: `UNIT`, `KILOGRAM`, `GRAM`, `LITER` ou `MILLILITER`.
-- Alterar os códigos numéricos persistidos exige migração coordenada. Regras de conversão entre unidades ainda não foram definidas.
+- Produto pertence a uma categoria e tem nome, código de barras, descrição opcional e unidade.
+- Código de barras é normalizado no fluxo de serviço/repositório e tem unicidade no banco.
+- Unidades persistidas: `UNIT`, `KILOGRAM`, `GRAM`, `LITER`, `MILLILITER`; conversões entre unidades não estão definidas.
+- Categoria tem nome, descrição e estado ativo. O schema rejeita descrição vazia.
 
-### 2.2 Fornecedores
+### Fornecedor
 
-- Identidade UUID; documento empresarial com 14 dígitos; e-mail obrigatório.
-- Fornecedor pode estar ativo ou inativo.
-- `ENTRY` requer fornecedor ativo. Fornecedor inativo permanece consultável para histórico.
-- `EXIT` e `LOSS` não exigem fornecedor e persistem `supplier_id` como `NULL`.
-- Registro de atualização/inativação via serviço ainda não está completo: o repository declara `update`, mas a implementação JDBC está TODO.
-- Não remover fisicamente fornecedor associado a movimentos; a FK do schema deve impedir remoção incompatível.
+- Fornecedor tem UUID, documento empresarial de 14 dígitos, e-mail, dados de contato e estado ativo/inativo.
+- Serviço e repositório JDBC suportam criação, busca, atualização e inativação.
+- ENTRY exige fornecedor ativo; fornecedor inativo segue disponível para reconstruir histórico.
+- EXIT e LOSS não exigem fornecedor. FK impede excluir fornecedor ainda referenciado por movimentos.
 
-### 2.3 Lotes e aquisições
+### Lotes e movimentos
 
-- Um lote representa o lote físico de um produto e tem UUID, produto, data de entrada, validade e saldo disponível.
-- `availableQuantity` é o saldo corrente; não existe `totalReceivedQuantity` no modelo ou no schema atual.
-- A primeira aquisição cria lote, `ENTRY` e item da movimentação; quantidade e custo histórico da entrada ficam no item.
-- Cada nova aquisição do mesmo produto cria outro lote. Não existe operação atual para acrescentar quantidade a lote antigo.
-- Quantidade inicial deve ser positiva; entrada não pode ser futura; validade não pode anteceder entrada.
-- Lote só é considerado vencido quando `expirationDate` é anterior à data atual.
-- Venda não pode usar lote vencido; perda pode consumir lote vencido, desde que haja saldo.
+- Lote contém produto, datas e saldo atual (`availableQuantity`). Não há `totalReceivedQuantity`.
+- A primeira aquisição cria lote, movimento `ENTRY` e item na mesma transação.
+- Cada nova aquisição do produto cria outro lote. Não há reposição no lote existente.
+- `EXIT` vende estoque; `LOSS` registra perda. Venda não consome lote vencido; perda pode consumir lote vencido com saldo.
+- `ADJUSTMENT` existe no enum/schema, mas não tem caso de uso.
+- Não há distribuição de uma venda entre lotes nem política FEFO.
 
-### 2.4 Movimentações e custo
+### Custo histórico
 
-- Tipos no enum: `ENTRY`, `EXIT`, `LOSS`, `ADJUSTMENT`; códigos são persistidos numericamente.
-- Movimento tem UUID, tipo, data/hora, descrição, fornecedor opcional e um ou mais itens.
-- Entrada pode conter vários itens e um fornecedor por cabeçalho. O fluxo de serviço atualmente implementado para aquisição cria um item por lote.
-- Item contém `lotId`, quantidade positiva e `unitCost` positivo. Total é calculado com `BigDecimal` e escala de duas casas.
-- `unitCost` é custo histórico de aquisição, não preço de venda ao consumidor.
-- Custo de venda/perda vem do item da `ENTRY` inicial daquele lote. Ausência ou ambiguidade deve falhar; não inventar custo.
-- `ADJUSTMENT` existe como tipo, mas não há caso de uso de ajuste implementado.
-
-### 2.5 Transações
-
-- Persistir saldo e movimento associado na mesma conexão e transação JDBC.
-- Entrada inicial: salvar lote + `ENTRY` + item como unidade atômica.
-- Venda/perda: atualizar saldo e registrar movimento/item atomicamente.
-- Erro em qualquer escrita antes do commit precisa resultar em rollback observável no banco.
-- Operações sobre estoque devem proteger o saldo contra valores negativos, incluindo concorrência. Os testes atuais confirmam atualização condicional individual, mas não substituem teste de corrida concorrente.
+- `StockMovementItem.unitCost` é custo unitário de aquisição; não significa preço de venda.
+- EXIT e LOSS recuperam o custo da ENTRY original do lote.
+- Migration 07 adiciona `initial_entry_lot_id`, `UNIQUE`, FK, CHECK e triggers. Migration 08 cria a procedure transacional, revoga INSERT direto de `marketcontrol_app` em `lots` e restringe a exceção de limpeza da ENTRY à sessão root.
+- O fluxo normal marca a origem explicitamente e entradas posteriores ficam sem marcador. Triggers protegem a origem marcada contra update, mudança do tipo de movimento e exclusão normal.
+- MariaDB não pode exigir por FK imediata que todo lote tenha um filho no commit; a garantia é fechada para a conta `marketcontrol_app@localhost` pelos grants da migration 08. Essa conta não pode inserir `lots` diretamente e recebe EXECUTE na procedure `SQL SECURITY DEFINER`, que grava lote + ENTRY/item atomicamente. Root/DBA permanece privilegiado.
 
 ## 3. Matriz de funcionalidades
 
-Estados: **Implementado e exercitado** = comportamento atual com evidência de execução adequada; **Parcial** = existe parte ou falta caminho/cobertura; **Planejado** = ainda não identificado no código.
-
-| ID | Requisito | Estado atual observado |
+| ID | Requisito | Estado observado |
 |---|---|---|
-| RF01 | Cadastrar categoria | Implementado por domínio, serviço, JDBC e CLI; testes de integração existentes. |
-| RF02 | Consultar/listar/editar categoria | Implementado por serviço e JDBC; CLI oferece cadastro, não ciclo completo. |
-| RF03 | Cadastrar produto | Implementado por domínio, serviço, JDBC e CLI; integração exercita persistência. |
-| RF04 | Consultar/listar/buscar produto | Implementado por serviços/JDBC e CLI. |
-| RF05 | Editar produto | Implementado em domínio, serviço, JDBC e CLI; unidade de medida não pode ser alterada. |
-| RF06 | Ativar/desativar produto | Planejado; produto não possui estado ativo. |
-| RF07 | Cadastrar fornecedor | Parcial: modelo, serviço save e persistência JDBC existem; CLI não oferece cadastro. |
-| RF08 | Consultar fornecedor por UUID/documento | Parcial: busca por UUID e existência por documento; sem listagem. |
-| RF09 | Editar/inativar fornecedor | Pendente: `JdbcSupplierRepository.update` não implementado e serviço não expõe atualização. |
-| RF10 | Entrada inicial de mercadoria | Implementado: fornecedor ativo, lote, movimento ENTRY/item e custo histórico no mesmo transaction manager. |
-| RF11 | Nova aquisição gera novo lote | Implementado e exercitado na integração; não há entrada adicional no lote existente. |
-| RF12 | Consultar lote(s) e saldo | Implementado por serviço/repository; total agrega lotes com validade hoje ou futura. |
-| RF13 | Venda de estoque | Parcial: `registerSale` atende um lote por chamada e grava movimento; sem CLI nem distribuição por múltiplos lotes. |
-| RF14 | Bloquear venda vencida/sem saldo | Implementado por update SQL condicional; integração cobre validade/saldo. |
-| RF15 | Registrar perda | Parcial: `registerLoss` por lote, com causa, transação e custo histórico; sem CLI. |
-| RF16 | Perda de produto vencido | Implementado no SQL de perda, que não bloqueia por data; integração cobre o caso. |
-| RF17 | Recuperar custo histórico | Implementado por consulta da ENTRY inicial via lote; integração verifica custo. Schema não impõe unicidade dessa entrada. |
-| RF18 | Consultar histórico de movimentos | Pendente: cabeçalhos/itens são gravados, mas não há consulta/repository/service de histórico. |
-| RF19 | Alertar validade próxima | Planejado; não há regra de janela nem alerta. |
-| RF20 | Estoque mínimo/alerta | Planejado; produto não contém mínimo nem serviço de alerta. |
-| RF21 | Ajustar estoque com motivo | Planejado; enum `ADJUSTMENT` existe, sem caso de uso. |
-| RF22 | Saída distribuída entre vários lotes | Planejado; política FEFO não implementada nem decidida como requisito final. |
-| RF23 | API HTTP | Planejado; nenhum servidor/endpoint existe. |
-| RF24 | Frontend independente | Planejado após contrato HTTP estável; nenhum projeto frontend existe. |
-| RF25 | Autenticação/autorização | Planejado; usuários e permissões não existem. |
-| RF26 | Spring Boot | Planejado para etapa posterior de aprendizagem; o backend atual é Java puro/JDBC. |
+| RF01–02 | Cadastro/consulta/edição de categorias | Domínio, serviço e JDBC; CLI parcial. |
+| RF03–05 | Cadastro/consulta/edição de produtos | Domínio, serviço e JDBC; CLI parcial; barcode único. |
+| RF06 | Ativar/desativar produto | Não implementado; produto não tem estado ativo. |
+| RF07–09 | Cadastro, consulta, atualização e inativação de fornecedor | Serviço e JDBC implementados; sem menu CLI. Integrações cobrem persistência, histórico e fornecedor inativo. |
+| RF10–11 | Entrada inicial e nova aquisição | Implementado; aquisição cria lote próprio e grava ENTRY/item atomicamente. |
+| RF12 | Consultar lotes e saldo | Serviço/repositório implementados; total considera validade hoje ou futura. |
+| RF13–14 | Venda e bloqueio por validade/saldo | Venda por lote em serviço; update condicional e transacional; concorrência exercitada. Sem CLI ou venda multi-lote. |
+| RF15–16 | Perda e perda de lote vencido | Serviço por lote, causa, custo histórico e transação; perda vencida permitida com saldo. Sem CLI. |
+| RF17 | Recuperar custo histórico | Implementado pelo marcador ENTRY; unicidade validada por constraint e origem criada atomicamente pela procedure. A conta da aplicação não pode inserir lotes diretamente. |
+| RF18 | Consultar histórico de movimentos | Não implementado; movimentos são gravados, sem consultas/paginação/serviço de leitura. |
+| RF19–20 | Alertas de validade e estoque mínimo | Não implementados; não há regra de janela ou nível mínimo. |
+| RF21 | Ajuste de estoque | Não implementado; existe apenas o tipo `ADJUSTMENT`. |
+| RF22 | Saída entre lotes/FEFO | Não implementado. |
+| RF23 | API HTTP | Não implementada. |
+| RF24 | Frontend | Não implementado. |
+| RF25 | Autenticação/autorização | Não implementadas. |
+| RF26 | Spring Boot | Não adotado; aplicação atual é Java puro/JDBC. |
 
-## 4. Requisitos não funcionais
+## 4. Transações e concorrência
 
-- **RNF01 — evolução didática:** consolidar Java/JDBC/SQL/transações antes de adotar abstrações de framework.
-- **RNF02 — integridade:** impedir saldo negativo e manter lote/movimento/itens consistentes.
-- **RNF03 — dinheiro e quantidades:** usar `BigDecimal`; documentar escala e arredondamento. Schema atual usa quantidade `DECIMAL(15,3)` e custo unitário `DECIMAL(15,2)`.
-- **RNF04 — tempo:** datas de lote usam `LocalDate`; movimentos usam `LocalDateTime`. Alinhar relógio JVM e `CURRENT_DATE` do banco e tornar testes temporais previsíveis.
-- **RNF05 — atomicidade:** qualquer alteração de saldo e histórico deve commitar integralmente ou não persistir.
-- **RNF06 — testes honestos:** separar unitários com dublês de integração JDBC real; falha de ambiente deve ser reportada, não mascarada.
-- **RNF07 — camadas:** regras permanecem no domínio/serviço; a API futura será adaptador e não dona da regra.
-- **RNF08 — segurança futura:** proteger segredos; API não pode expor SQL, stack traces ou credenciais.
-- **RNF09 — operação futura:** migrations reproduzíveis, CI, logs, backups e ambiente de deploy antes de declarar prontidão profissional.
+`JdbcTransactionManager` abre conexão, desativa auto-commit, comita ao final e executa rollback em falha. Entrada grava lote + ENTRY/item na mesma conexão. Venda/perda debitam saldo e gravam movimento/item na mesma transação.
 
-## 5. Arquitetura e estrutura atuais
+O saldo é atualizado por uma única instrução InnoDB, sem leitura e gravação separadas:
 
-```text
-src/main/java/marketcontrol/
-├── Program.java                         # terminal e composição
-├── dtos/ProductDTO.java                 # dados de edição de produto
-├── domain/
-│   ├── model/                            # Category, Product, Supplier, Lot, movimentos
-│   │   ├── enums/                        # códigos de unidade e movimento
-│   │   └── interfaces/                   # visões ReadOnly*
-│   └── repository/                       # contratos dos repositories
-├── service/                              # casos de uso
-├── transaction/                          # abstração de transação/callbacks
-├── infrastructure/
-│   ├── database/DatabaseConnection.java  # properties e DriverManager
-│   └── persistence/jdbc/                 # repositories e JdbcTransactionManager
-└── exception/                             # persistência e mapeamento
-
-src/test/java/                             # JUnit 5 unitário e integração MariaDB
-database/                                  # seis scripts DDL
-docs/requirements.md                       # decisões e matriz funcional
+```sql
+UPDATE lots
+SET available_quantity = available_quantity - ?
+WHERE id = ? AND available_quantity >= ?
 ```
 
-Os contratos `LotRepository` e `StockMovementRepository` recebem `java.sql.Connection` nas operações transacionais. Isso permite compartilhar a conexão, mas acopla parte do núcleo à tecnologia JDBC. A composição é manual no `Program` e não existe container de injeção.
+Venda também exige validade não vencida. A atualização bloqueia a linha; transações concorrentes esperam e a condição de saldo é reavaliada. Não foi necessário lock Java nem `SELECT ... FOR UPDATE`. Se não atualizar uma linha, o serviço falha antes de salvar movimento. Se o insert do movimento falhar depois do débito, a mesma transação faz rollback.
 
-## 6. Banco de dados
+Testes MariaDB usam `CountDownLatch`, duas threads e duas conexões identificadas por `CONNECTION_ID()`. Quatro cenários são repetidos dez vezes: duas vendas de 7 sobre saldo 10; venda 7 contra perda 7; venda 4 com perda 5; e rollback forçado de uma operação simultânea à operação bem-sucedida. Verificam saldo, ausência de negativos, quantidade/tipo de movimentos e itens e custo histórico. Resultado observado: 40 execuções, todas aprovadas.
 
-Scripts: `01_categories.sql`, `02_products.sql`, `03_lots.sql`, `04_suppliers.sql`, `05_stock_movements.sql`, `06_stock_movement_items.sql`.
+Essa evidência demonstra os cenários testados no MariaDB 10.11 local. Não prova comportamento sob falhas de rede durante commit, alta contenção de produção, retries/deadlocks, múltiplos nós ou outro nível de isolamento/configuração.
 
-| Relação | Integridade relevante atual |
-|---|---|
-| Produto → Categoria | FK; `category_id` não nulo; delete restrito. |
-| Lote → Produto | FK; `product_id` não nulo. |
-| Movimento → Fornecedor | FK nullable; índice em `supplier_id`. |
-| Item → Movimento | FK; movimento obrigatório; índice. |
-| Item → Lote | FK; lote obrigatório; índice. |
-| Categoria | descrição não vazia por `CHECK`. |
-| Produto | `bar_code` único; `unit` obrigatório. |
-| Fornecedor | documento único e dados cadastrais requeridos. |
-| Lote | `available_quantity DECIMAL(15,3)` não negativa; não existe coluna de total recebido. |
-| Item | quantidade positiva (`DECIMAL(15,3)`) e custo positivo (`DECIMAL(15,2)`). |
-
-**Ordem válida para schema vazio:** `01_categories.sql`, `02_products.sql`, `03_lots.sql`, `04_suppliers.sql`, `05_stock_movements.sql`, `06_stock_movement_items.sql`. Os scripts não criam banco/usuário e não são migrations incrementais.
-
-## 7. Testes e evidência de execução
-
-Na revisão de 18/11/2026 foram executados:
+## 5. Arquitetura observada
 
 ```text
-mvn clean compile                 → BUILD SUCCESS; 37 classes de produção
-mvn test-compile                  → BUILD SUCCESS; 22 fontes de teste
-mvn clean test -Dstyle.color=never → BUILD SUCCESS; 108 testes, 0 falhas, 0 erros, 0 ignorados
+Program (CLI/composição manual)
+  → services
+  → domain models + repository contracts
+  → JDBC repositories + JdbcTransactionManager
+  → MariaDB
 ```
 
-O teste final acessou MariaDB local. A tentativa inicial sem permissão de rede falhou ao abrir socket; repetida com acesso autorizado, a suíte passou. Testes unitários cobrem categorias, produtos, fornecedores, lotes, movimentos, itens e enums. Integrações cobrem JDBC de produto/lote/fornecedor/movimento e transaction manager, além de fluxos de serviço. Há evidência DB de commit e rollback em entrada, venda e perda.
+Os contratos transacionais recebem `java.sql.Connection`, então o núcleo conhece JDBC em parte. `ProductDTO` é para edição interna, não DTO HTTP. `DatabaseConnection` carrega `database.properties` do classpath e usa `DriverManager`; não há profiles nem pool. `src/main/java/marketcontrol/Test.java` é um exercício de streams compilado junto com produção.
 
-Limitações: não há métrica JaCoCo; não há teste de corrida concorrente no estado atual; nem todas as operações de Supplier ou leitura de histórico existem para serem testadas; conexão global via properties não separa profiles/ambientes. A classe `src/main/java/marketcontrol/Test.java` é um exercício de streams e não teste automatizado.
+## 6. Banco e setup
 
-## 8. Roadmap em ordem de dependência
+Scripts de criação e dependências:
 
-1. Tornar setup de banco repetível, corrigir a ordem de criação e separar configuração segura de teste/desenvolvimento.
-2. Completar fornecedor: update/inativação com histórico, operação de serviço e testes para entrada ativa/inativa.
-3. Completar casos de uso e consultas de movimentação; definir ajuste e venda multi-lote/FEFO antes da implementação.
-4. Fortalecer schema/migrations e contratos JDBC; validar constraints e deleções necessárias.
-5. Testar concorrência de venda/perda, isolamento e falhas transacionais observáveis.
-6. Reduzir acoplamento de `Connection` nos contratos de aplicação e definir objetos de entrada/saída e erros estáveis.
-7. Aprender HTTP com exercício Java puro e adaptar os casos de uso por endpoints finos; depois considerar Spring Boot comparativamente.
-8. Antes de uso por frontend, adicionar DTOs de API, validação, autenticação/autorização, erros globais, CORS e OpenAPI.
-9. Só após contrato de API estável iniciar frontend separado; agregar CI, migrations, observabilidade, backups e deploy antes de operação real.
+1. `database/01_categories.sql`
+2. `database/02_products.sql`
+3. `database/03_lots.sql`
+4. `database/04_suppliers.sql`
+5. `database/05_stock_movements.sql`
+6. `database/06_stock_movement_items.sql`
 
-## 9. Progresso qualitativo
+Migrations para base existente: `database/07_lot_initial_entry_integrity.sql` e `database/08_atomic_lot_creation_and_app_grants.sql`. A 07 faz preflight de histórico e interrompe se lote não tiver exatamente uma ENTRY candidata ou se houver mais de uma, sem corrigir/apagar dados silenciosamente. A 08 verifica as origens, cria a procedure atômica e substitui os grants de `marketcontrol_app@localhost`; esse usuário precisa existir previamente.
 
-Escala: 0 = ausente; 25 = estrutura inicial; 50 = fluxo principal parcial; 75 = núcleo demonstrado com evidência e lacunas de robustez; 100 = critérios de conclusão estabelecidos e demonstrados. Não é cobertura de código.
+A sequência 01–06 foi executada em `marketcontrol_bootstrap_test`, schema descartável inicialmente sem tabelas. As seis tabelas, FKs, índices e constraints foram inspecionados; depois o schema temporário foi removido. Migrations 07/08 foram aplicadas com root ao MariaDB local `marketcontrol`; procedure, grants e triggers foram inspecionados. Testes com `marketcontrol_app` confirmaram INSERT direto negado, criação pela procedure e rejeição da tentativa de apagar origem mesmo definindo a variável de limpeza. A suíte remove fixtures e o banco termina sem lotes, movimentos ou itens.
 
-| Área | Estimativa atual |
-|---|---:|
-| Fundamentos de domínio | 70% |
-| Modelagem OO | 65% |
-| Arquitetura | 55% |
-| Persistência JDBC | 70% |
-| SQL e banco | 65% |
-| Transações e consistência | 75% |
-| Testes | 70% |
-| Prontidão para estudar HTTP | 40% |
-| Prontidão para frontend integrado | 15% |
-| Projeto geral, considerando o objetivo de backend e frontend profissionais | 55% |
+Scripts não criam database ou usuário. A migration 08 revoga INSERT no nível do schema da conta `marketcontrol_app`, concede INSERT apenas nas demais tabelas necessárias e EXECUTE na procedure de criação. Configuração local também fornece credenciais administrativas separadas para limpar fixtures protegidas; não as versione.
 
-Estimativas significam progresso em relação ao escopo amplo, incluindo itens ainda não implementados. A suíte verde mede apenas os casos escritos e executados.
+## 7. Testes e evidências desta revisão
 
-## 10. Limitações conhecidas e itens fora de escopo atual
+Comando final executado: `mvn clean test -Dstyle.color=never -Ddb.admin.user=root -Ddb.admin.password=root`.
 
-- Não há API, frontend, autenticação, usuário ou autorização.
-- Não existe venda distribuída entre lotes, FEFO final, ajuste ou alerta.
-- Não existe consulta de histórico, paginação ou exportação.
-- Fornecedor não tem atualização/inativação de ponta a ponta; JDBC update está TODO.
-- Menu CLI não expõe fornecedor, venda, perda ou histórico; entrada exige UUID de fornecedor previamente existente.
-- `findInitialEntryByLotId` pressupõe uma ENTRY por lote, porém o schema atual não impõe essa unicidade.
-- Concorrência não foi comprovada; atualização SQL condicional cobre uma operação isolada, não a política concorrente completa.
-- Código de saída e validade usam relógios JVM/DB que podem divergir por timezone.
-- Configuração não tem perfil, pool, verificação de ambiente ou proteção automática contra banco incorreto.
-- Não há pipeline CI, cobertura, migrations, logs estruturados, monitoramento, backup ou deploy.
-- `src/main/java/marketcontrol/Test.java` é classe auxiliar experimental no source set principal.
+| Grupo | Testes | Resultado |
+|---|---:|---|
+| Suíte total | 164 | 0 falhas, 0 erros, 0 ignorados; BUILD SUCCESS. |
+| Unitários/domínio/serviços | 65 | Aprovados. |
+| Integração JDBC/MariaDB tradicional | 59 | Aprovados. |
+| Integração concorrente MariaDB | 40 | Aprovados; quatro cenários × dez repetições. |
+| Bootstrap SQL descartável | 6 scripts | Sucesso; schema, constraints, FKs e índices verificados e schema removido. |
 
-## 11. Decisões futuras que precisam de justificativa
+O primeiro commit que registra a auditoria anterior está no histórico como `ddccbda` (`test: document current inventory audit and integration coverage`). A mensagem é diferente da sugestão original, mas o commit contém README, requirements e ajustes de fixtures/testes. Trabalho posterior das tarefas de fornecedor e ENTRY aparece no working tree e ainda não está commitado.
 
-Decisões confirmadas de lote, custo histórico, novos lotes por aquisição, fornecedor em `ENTRY`, saídas sem fornecedor e atomicidade não devem ser reabertas sem evidência técnica concreta. Permanecem decisões abertas: conversões de unidade, escalas/rounding de venda, janela de validade próxima, política para lotes vencidos em consulta, critérios e justificativa de perdas, política FEFO e desempate, fluxo de ajuste/reversão, retenção/histórico e modelo de usuários/perfis.
+## 8. Roadmap e prontidão para HTTP
 
-## 12. Avaliação do nível técnico observado
+Antes de integrar HTTP ao MarketControl:
 
-Esta avaliação considera decisões registradas, código do repositório e rigor solicitado para a auditoria. Ela **não prova autonomia de implementação**: acompanhar uma explicação, definir requisitos e revisar evidência são sinais diferentes de resolver sozinho uma tarefa de ponta a ponta.
+1. Preservar os grants mínimos e executar a aplicação como `marketcontrol_app`, nunca como root.
+2. Separar configuração de desenvolvimento/teste e validar o banco-alvo antes de operações que gravam.
+3. Estabilizar limites de serviço e mapeamento de erros para adaptadores, sem expor JDBC/SQL ao contrato HTTP.
+4. Iniciar HTTP como adaptador didático de escopo limitado e testar os primeiros endpoints; autenticação/autorização são obrigatórias antes de uso externo.
 
-| Área | Nível observado | Evidência e lacuna principal |
-|---|---|---|
-| Java e orientação a objetos | Intermediário | O projeto usa modelos, serviços, interfaces de leitura, enums e composição manual; falta avaliar autoria independente em mudanças maiores. |
-| Encapsulamento e invariantes | Intermediário | Regras como lote separado por aquisição e custo de entrada foram explicitadas; inconsistências reais ainda existem no encapsulamento e nas validações do código. |
-| Collections e generics | Intermediário | Uso de `List`, `Optional`, streams, cópias imutáveis e callbacks genéricos aparece no projeto; falta evidência de domínio de coleções em cenários mais complexos. |
-| Exceções | Iniciante avançado | Há exceções de persistência/mapeamento e causas preservadas; classificação e fronteiras de erro ainda precisam ficar consistentes. |
-| Separação de responsabilidades | Intermediário | Há pacotes de domínio, serviço e JDBC, mas contratos transacionais expõem `Connection` e CLI ainda coordena/comunica diretamente. |
-| Modelagem de domínio | Intermediário | Regras e associações de lote/movimento/custo histórico são bem definidas; existem casos ainda incompletos como ajuste e venda multi-lote. |
-| JDBC e SQL | Intermediário | Repositories usam SQL e PreparedStatement e há testes reais; ainda faltam migrations, cobertura de todos os métodos e política de concorrência. |
-| Transações | Intermediário | Atomicidade é explicitamente exigida e confirmada nos fluxos centrais; corrida de operações simultâneas ainda não foi demonstrada. |
-| Testes | Intermediário | 108 testes passam, incluindo integração e rollback; sem cobertura quantitativa, CI e testes concorrentes. |
-| Raciocínio arquitetural | Intermediário avançado | A evolução Java puro → HTTP → Spring e frontend foi ordenada por dependências; a execução autônoma dessa evolução não está comprovada pelo diálogo. |
-| Identificação e justificativa de problemas | Intermediário avançado no planejamento | O pedido exige evidência, separa falha de ambiente de falha funcional e estabelece limites de alteração; a competência prática independente ainda requer observação. |
+**Decisão atual:** Tarefa 4 está fechada para o papel `marketcontrol_app` por procedure/grants e Tarefa 5 está demonstrada em 40 disputas concorrentes repetidas. O núcleo está pronto para iniciar HTTP como próximo passo educacional, não para uso em produção.
 
-**Síntese:** há sinais concretos de nível intermediário em decisões de domínio, leitura de arquitetura, JDBC e testes. Para afirmar nível intermediário de forma consistente, é necessário demonstrar autonomia repetida: transformar requisito em alteração pequena, implementar sem deslocar regra para camada errada, criar teste que falha antes e passa depois, verificar o banco/transação e explicar trade-offs. Para chegar a intermediário avançado, acrescentar concorrência, desenho de contratos HTTP seguros, migrations/CI e depuração de falhas de produção em exercícios feitos com pouca orientação.
+## 9. Maturidade do projeto
+
+**Classificação:** projeto educacional de nível intermediário, com núcleo de domínio/JDBC funcional e transações testadas, incluindo disputa concorrente real. Está em estágio pré-MVP de backend, não em nível de produção. O número de testes e a classificação não equivalem a cobertura, confiabilidade operacional ou certificação de segurança.
+
+Faltam, entre outros: consulta de histórico; interface além do CLI parcial; API e segurança; configuração por ambiente; CI e cobertura quantitativa; logs, backup, monitoramento e deploy.

@@ -9,7 +9,6 @@ public interface ReadOnlyLot {
 	ReadOnlyProduct getProduct();
 	LocalDate getEntryDate();
 	LocalDate getExpirationDate();
-	BigDecimal getTotalReceivedQuantity();
 	BigDecimal getAvailableQuantity();
 	boolean isExpired();
 }

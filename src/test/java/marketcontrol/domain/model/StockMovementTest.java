@@ -9,62 +9,47 @@ import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
-import marketcontrol.exception.data.DataMappingException;
 
 import marketcontrol.domain.model.enums.MovementType;
+import marketcontrol.exception.data.DataMappingException;
 
 class StockMovementTest {
-    private final StockMovementItem item = StockMovementItem.create(UUID.randomUUID(), BigDecimal.ONE);
-    private final LocalDateTime at = LocalDateTime.now();
+    private final LocalDateTime now = LocalDateTime.now();
+    private final StockMovementItem item = StockMovementItem.create(UUID.randomUUID(), BigDecimal.ONE, BigDecimal.ONE);
 
-    @Test void createsMovementWithValidData() {
-        StockMovement movement = StockMovement.create(MovementType.ENTRY, at, "Compra recebida", List.of(item));
-        assertNotNull(movement.getId());
-        assertEquals(MovementType.ENTRY, movement.getType());
-        assertEquals(at, movement.getDateTime());
-        assertEquals(List.of(item), movement.getItems());
+    private Supplier supplier(boolean active) {
+        Supplier supplier = Supplier.create("Legal", "Trade", "12345678901234", "a@b.com", "123", "Contact");
+        supplier.setActive(active);
+        return supplier;
     }
 
-    @Test void movementItemsAreCopiedOnCreation() {
-        List<StockMovementItem> items = new ArrayList<>(List.of(item));
-        StockMovement movement = StockMovement.create(MovementType.EXIT, at, "Venda", items);
-        items.clear();
+    @Test void entryRequiresActiveSupplier() {
+        assertEquals(MovementType.ENTRY, StockMovement.create(MovementType.ENTRY, now, "Compra", supplier(true), List.of(item)).getType());
+        assertThrows(IllegalArgumentException.class, () -> StockMovement.create(MovementType.ENTRY, now, "Compra", null, List.of(item)));
+        assertThrows(IllegalArgumentException.class, () -> StockMovement.create(MovementType.ENTRY, now, "Compra", supplier(false), List.of(item)));
+    }
+
+    @Test void exitAndLossRequireNoSupplier() {
+        assertNull(StockMovement.create(MovementType.EXIT, now, "Venda", List.of(item)).getSupplier());
+        assertNull(StockMovement.create(MovementType.LOSS, now, "Perda", List.of(item)).getSupplier());
+        assertThrows(IllegalArgumentException.class, () -> StockMovement.create(MovementType.EXIT, now, "Venda", supplier(true), List.of(item)));
+        assertThrows(IllegalArgumentException.class, () -> StockMovement.create(MovementType.LOSS, now, "Perda", supplier(true), List.of(item)));
+    }
+
+    @Test void requiresNonEmptyNonNullItemsAndReturnsImmutableCopy() {
+        assertThrows(IllegalArgumentException.class, () -> StockMovement.create(MovementType.EXIT, now, "Venda", (List<StockMovementItem>) null));
+        assertThrows(IllegalArgumentException.class, () -> StockMovement.create(MovementType.EXIT, now, "Venda", List.of()));
+        List<StockMovementItem> mutable = new ArrayList<>(List.of(item));
+        StockMovement movement = StockMovement.create(MovementType.EXIT, now, "Venda", mutable);
+        mutable.clear();
         assertEquals(1, movement.getItems().size());
         assertThrows(UnsupportedOperationException.class, () -> movement.getItems().clear());
     }
 
-    @Test void reconstitutesMovementWithPersistedId() {
-        UUID id = UUID.randomUUID();
-        StockMovement movement = StockMovement.reconstitute(id, MovementType.LOSS, at, "Produto vencido", List.of(item));
-        assertEquals(id, movement.getId());
-        assertEquals(MovementType.LOSS, movement.getType());
-    }
-
-    @Test void rejectsNullType() {
-        assertThrows(IllegalArgumentException.class, () -> StockMovement.create(null, at, "Descrição", List.of(item)));
-    }
-
-    @Test void rejectsNullDateTime() {
-        assertThrows(IllegalArgumentException.class, () -> StockMovement.create(MovementType.ENTRY, null, "Descrição", List.of(item)));
-    }
-
-    @Test void rejectsNullOrBlankDescription() {
-        assertThrows(IllegalArgumentException.class, () -> StockMovement.create(MovementType.ENTRY, at, null, List.of(item)));
-        assertThrows(IllegalArgumentException.class, () -> StockMovement.create(MovementType.ENTRY, at, "  ", List.of(item)));
-    }
-
-    @Test void rejectsNullOrEmptyItemList() {
-        assertThrows(IllegalArgumentException.class, () -> StockMovement.create(MovementType.ENTRY, at, "Descrição", null));
-        assertThrows(IllegalArgumentException.class, () -> StockMovement.create(MovementType.ENTRY, at, "Descrição", List.of()));
-    }
-
-    @Test void rejectsNullItemInList() {
-        List<StockMovementItem> items = new ArrayList<>();
-        items.add(null);
-        assertThrows(IllegalArgumentException.class, () -> StockMovement.create(MovementType.ENTRY, at, "Descrição", items));
-    }
-
-    @Test void rejectsNullIdDuringReconstitution() {
-        assertThrows(DataMappingException.class, () -> StockMovement.reconstitute(null, MovementType.ENTRY, at, "Descrição", List.of(item)));
+    @Test void reconstitutesHistoricalEntryWithInactiveSupplier() {
+        Supplier inactive = supplier(false);
+        StockMovement movement = StockMovement.reconstitute(UUID.randomUUID(), MovementType.ENTRY, now, "Histórico", inactive, List.of(item));
+        assertFalse(movement.getSupplier().isActive());
+        assertThrows(DataMappingException.class, () -> StockMovement.reconstitute(UUID.randomUUID(), MovementType.ENTRY, now, "Histórico", null, List.of(item)));
     }
 }

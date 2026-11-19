@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import marketcontrol.DatabaseTestCleanup;
 import marketcontrol.domain.model.Lot;
+import marketcontrol.domain.model.Supplier;
 import marketcontrol.domain.model.enums.UnitOfMeasure;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 import marketcontrol.domain.repository.ProductRepository;
@@ -24,6 +25,7 @@ class JdbcLotRepositoryIntegrationTest {
     private ProductService products;
     private ReadOnlyProduct product;
     private UUID categoryId;
+    private Supplier supplier;
 
     @BeforeEach void setUp() {
         ProductRepository productRepository = new JdbcProductRepository();
@@ -33,13 +35,22 @@ class JdbcLotRepositoryIntegrationTest {
         categoryId = category.getId();
         product = products.saveProduct("Lot product", "LOT-" + run, null, categoryId, UnitOfMeasure.KILOGRAM);
         lots = new JdbcLotRepository(productRepository);
+        supplier = Supplier.create("Lot repository supplier", "Lot repository supplier", document(run), "lotrepo-" + run + "@example.invalid", "555", "Test");
+        new JdbcSupplierRepository().save(supplier);
     }
 
-    @AfterEach void cleanUp() { DatabaseTestCleanup.deleteCategory(categoryId); }
+    @AfterEach void cleanUp() {
+        DatabaseTestCleanup.deleteCategory(categoryId);
+        if (supplier != null) {
+            try (var c = marketcontrol.infrastructure.database.DatabaseConnection.getConnection(); var p = c.prepareStatement("DELETE FROM suppliers WHERE id=?")) {
+                p.setString(1, supplier.getId().toString()); p.executeUpdate();
+            } catch (Exception e) { throw new AssertionError("Could not clean lot repository supplier fixture", e); }
+        }
+    }
 
     @Test void savesAndReadsLotUsingCurrentSchema() {
         Lot lot = Lot.create(product, LocalDate.now(), LocalDate.now().plusDays(10), new BigDecimal("12.500"));
-        new JdbcTransactionManager().execute(conn -> lots.save(conn, lot));
+        new JdbcTransactionManager().execute(conn -> lots.saveWithInitialEntry(conn, lot, supplier, new BigDecimal("2.50")));
         var persisted = lots.findById(lot.getId()).orElseThrow();
         assertAll(
                 () -> assertEquals(lot.getId(), persisted.getId()),
@@ -52,7 +63,10 @@ class JdbcLotRepositoryIntegrationTest {
         Lot current = Lot.create(product, LocalDate.now().minusDays(1), LocalDate.now().plusDays(1), new BigDecimal("10"));
         Lot expired = Lot.create(product, LocalDate.now().minusDays(5), LocalDate.now().minusDays(1), new BigDecimal("7"));
         JdbcTransactionManager tx = new JdbcTransactionManager();
-        tx.execute(conn -> { lots.save(conn, current); lots.save(conn, expired); });
+        tx.execute(conn -> {
+            lots.saveWithInitialEntry(conn, current, supplier, new BigDecimal("2.50"));
+            lots.saveWithInitialEntry(conn, expired, supplier, new BigDecimal("3.10"));
+        });
 
         assertEquals(new BigDecimal("10.000"), lots.getTotalAvailableQuantity(product.getId()));
         int saleRows = tx.executeAndReturn(conn -> lots.decreaseAvailableQuantityForSale(conn, current.getId(), new BigDecimal("4")));
@@ -70,9 +84,14 @@ class JdbcLotRepositoryIntegrationTest {
 
     @Test void rejectsSaleWhenBalanceWouldBecomeNegative() {
         Lot lot = Lot.create(product, LocalDate.now(), LocalDate.now().plusDays(1), BigDecimal.ONE);
-        new JdbcTransactionManager().execute(conn -> lots.save(conn, lot));
+        new JdbcTransactionManager().execute(conn -> lots.saveWithInitialEntry(conn, lot, supplier, new BigDecimal("2.50")));
         int affected = new JdbcTransactionManager().executeAndReturn(conn -> lots.decreaseAvailableQuantityForSale(conn, lot.getId(), new BigDecimal("1.001")));
         assertEquals(0, affected);
         assertEquals(0, BigDecimal.ONE.compareTo(lots.findById(lot.getId()).orElseThrow().getAvailableQuantity()));
+    }
+
+    private static String document(String value) {
+        long numeric = Math.floorMod(UUID.fromString(value).getMostSignificantBits(), 100_000_000_000_000L);
+        return String.format("%014d", numeric);
     }
 }

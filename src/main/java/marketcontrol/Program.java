@@ -18,16 +18,19 @@ import marketcontrol.domain.repository.CategoryRepository;
 import marketcontrol.domain.repository.LotRepository;
 import marketcontrol.domain.repository.ProductRepository;
 import marketcontrol.domain.repository.StockMovementRepository;
+import marketcontrol.domain.repository.SupplierRepository;
 import marketcontrol.dtos.ProductDTO;
 import marketcontrol.infrastructure.persistence.jdbc.JdbcCategoryRepository;
 import marketcontrol.infrastructure.persistence.jdbc.JdbcLotRepository;
 import marketcontrol.infrastructure.persistence.jdbc.JdbcProductRepository;
 import marketcontrol.infrastructure.persistence.jdbc.JdbcStockMovementRepository;
+import marketcontrol.infrastructure.persistence.jdbc.JdbcSupplierRepository;
 import marketcontrol.infrastructure.persistence.jdbc.JdbcTransactionManager;
 import marketcontrol.service.CategoryService;
 import marketcontrol.service.LotService;
 import marketcontrol.service.ProductService;
 import marketcontrol.service.StockMovementService;
+import marketcontrol.service.SupplierService;
 import marketcontrol.transaction.TransactionManager;
 
 public class Program {
@@ -40,7 +43,9 @@ public class Program {
 	private static final StockMovementRepository stockMovementRepository = new JdbcStockMovementRepository();
 	private static final TransactionManager transactionManager = new JdbcTransactionManager();
 	private static final StockMovementService stockMovementService = new StockMovementService(transactionManager, stockMovementRepository, lotRepository);
-	private static final LotService lotService = new LotService(productService, lotRepository, transactionManager, stockMovementService);
+	private static final SupplierRepository supplierRepository  = new JdbcSupplierRepository();
+	private static final SupplierService supplierService = new SupplierService(supplierRepository);
+	private static final LotService lotService = new LotService(productService, lotRepository, supplierService, transactionManager);
 
 	public static void main(String[] args) {
 		try (Scanner sc = new Scanner(System.in)){
@@ -195,17 +200,33 @@ public class Program {
 		productList();
 		
 		UUID id = readProductId(sc);
+		UUID supplierId = readUUID(sc, "Digite o UUID do fornecedor ativo: ");
 		
 		LocalDate dataEntry = readEntryDate(sc, "Digite a DATA de entrada (dd/MM/uuuu): ", formatter);
 		
 		LocalDate dataExpires = readExpiresDate(sc, "Digite a DATA de validade (dd/MM/uuuu): ", formatter, dataEntry);
 		BigDecimal total = readPositiveQuantity(sc);
+		BigDecimal unitCost = readPositiveAmount(sc, "Digite o custo unitário de aquisição: ");
 
-		ReadOnlyLot save = lotService.save(id, dataEntry, dataExpires, total);
+		ReadOnlyLot save = lotService.save(id, supplierId, dataEntry, dataExpires, total, unitCost);
 
 		System.out.println("Novo LOTE inserido: ");
 		System.out.println(save.getId() + " | " + save.getEntryDate() + " | " + save.getExpirationDate() + " | "
-				+ save.getTotalReceivedQuantity());
+				+ save.getAvailableQuantity());
+	}
+
+	private static BigDecimal readPositiveAmount(Scanner sc, String message) {
+		while (true) {
+			System.out.println(message);
+			try {
+				BigDecimal value = new BigDecimal(sc.nextLine().trim().replace(',', '.'));
+				if (value.compareTo(BigDecimal.ZERO) > 0)
+					return value;
+			} catch (NumberFormatException ignored) {
+				// Ask again for an amount the user can enter.
+			}
+			System.out.println("Informe um valor numérico maior que zero.");
+		}
 	}
 
 	private static void consultLotAndStock(Scanner sc) {

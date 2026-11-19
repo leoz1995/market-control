@@ -8,7 +8,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.ArrayList;
 import java.util.List;
@@ -18,17 +17,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import marketcontrol.DatabaseTestCleanup;
-import marketcontrol.domain.model.StockMovement;
 import marketcontrol.domain.model.Supplier;
 import marketcontrol.domain.model.enums.UnitOfMeasure;
-import marketcontrol.domain.repository.StockMovementRepository;
+import marketcontrol.domain.repository.LotRepository;
 import marketcontrol.domain.repository.SupplierRepository;
 import marketcontrol.exception.PersistenceException;
 import marketcontrol.infrastructure.database.DatabaseConnection;
 import marketcontrol.infrastructure.persistence.jdbc.JdbcCategoryRepository;
 import marketcontrol.infrastructure.persistence.jdbc.JdbcLotRepository;
 import marketcontrol.infrastructure.persistence.jdbc.JdbcProductRepository;
-import marketcontrol.infrastructure.persistence.jdbc.JdbcStockMovementRepository;
 import marketcontrol.infrastructure.persistence.jdbc.JdbcSupplierRepository;
 import marketcontrol.infrastructure.persistence.jdbc.JdbcTransactionManager;
 
@@ -40,8 +37,8 @@ class LotServiceIntegrationTest {
     private final List<UUID> extraSupplierIds = new ArrayList<>();
     private JdbcSupplierRepository supplierRepository;
     private JdbcLotRepository lotRepository;
-    private JdbcStockMovementRepository movementRepository;
     private JdbcTransactionManager transactions;
+    private SupplierService supplierService;
     private LotService lotService;
 
     @BeforeEach void setUp() {
@@ -61,11 +58,9 @@ class LotServiceIntegrationTest {
         supplierRepository.save(supplier);
 
         lotRepository = new JdbcLotRepository(new JdbcProductRepository());
-        movementRepository = new JdbcStockMovementRepository();
         transactions = new JdbcTransactionManager();
-        SupplierService supplierService = new SupplierService(supplierRepository);
-        StockMovementService stockMovements = new StockMovementService(transactions, movementRepository, lotRepository);
-        lotService = new LotService(products, lotRepository, supplierService, transactions, stockMovements);
+        supplierService = new SupplierService(supplierRepository);
+        lotService = new LotService(products, lotRepository, supplierService, transactions);
     }
 
     @AfterEach void cleanUp() {
@@ -100,13 +95,34 @@ class LotServiceIntegrationTest {
         assertEquals(new BigDecimal("2.35"), entryCost(second.getId()));
     }
 
+    @Test void applicationCannotInsertOrphanLotDirectlyAndServiceCreatesItsEntry() throws Exception {
+        UUID directId = UUID.randomUUID();
+        assertThrows(java.sql.SQLException.class, () -> {
+            try (Connection c = DatabaseConnection.getConnection(); PreparedStatement p = c.prepareStatement(
+                    "INSERT INTO lots (id,product_id,entry_date,expiration_date,available_quantity) VALUES (?,?,?,?,?)")) {
+                p.setString(1, directId.toString());
+                p.setString(2, productId.toString());
+                p.setDate(3, java.sql.Date.valueOf(LocalDate.now()));
+                p.setDate(4, java.sql.Date.valueOf(LocalDate.now().plusDays(20)));
+                p.setBigDecimal(5, BigDecimal.ONE);
+                p.executeUpdate();
+            }
+        });
+        assertEquals(0, count("SELECT COUNT(*) FROM lots WHERE id=?", directId.toString()));
+
+        var created = lotService.save(productId, supplier.getId(), LocalDate.now(), LocalDate.now().plusDays(20), BigDecimal.ONE, new BigDecimal("4.25"));
+        assertEquals(1, count("SELECT COUNT(*) FROM stock_movement_items WHERE initial_entry_lot_id=?", created.getId().toString()));
+        assertEquals(new BigDecimal("4.25"), entryCost(created.getId()));
+    }
+
     @Test void rollsBackLotWhenEntryMovementPersistenceFails() throws Exception {
-        StockMovementRepository failingMovementRepository = new StockMovementRepository() {
-            public void save(Connection c, StockMovement movement) { throw new PersistenceException("controlled failure while saving ENTRY"); }
-            public Optional<BigDecimal> findInitialEntryByLotId(Connection c, UUID id) { return Optional.empty(); }
-        };
-        StockMovementService failingMovements = new StockMovementService(transactions, failingMovementRepository, lotRepository);
-        LotService failingService = new LotService(lotServiceProduct(), lotRepository, new SupplierService(supplierRepository), transactions, failingMovements);
+        LotRepository failingLotRepository = (LotRepository) java.lang.reflect.Proxy.newProxyInstance(
+                LotRepository.class.getClassLoader(), new Class<?>[] { LotRepository.class }, (proxy, method, args) -> {
+                    if (method.getName().equals("saveWithInitialEntry"))
+                        throw new PersistenceException("controlled failure while saving lot and ENTRY");
+                    return method.invoke(lotRepository, args);
+                });
+        LotService failingService = new LotService(lotServiceProduct(), failingLotRepository, new SupplierService(supplierRepository), transactions);
         assertThrows(PersistenceException.class, () -> failingService.save(productId, supplier.getId(), LocalDate.now(), LocalDate.now().plusDays(20), BigDecimal.ONE, BigDecimal.ONE));
         assertEquals(0, count("SELECT COUNT(*) FROM lots WHERE product_id=?", productId.toString()));
         assertEquals(0, count("SELECT COUNT(*) FROM stock_movements WHERE supplier_id=? AND description='Entrada inicial do lote.'", supplier.getId().toString()));
@@ -119,6 +135,20 @@ class LotServiceIntegrationTest {
         extraSupplierIds.add(inactiveId);
         assertThrows(IllegalArgumentException.class, () -> lotService.save(productId, inactiveId, LocalDate.now(), LocalDate.now().plusDays(20), BigDecimal.ONE, BigDecimal.ONE));
         assertEquals(0, count("SELECT COUNT(*) FROM lots WHERE product_id=?", productId.toString()));
+    }
+
+    @Test void deactivationPreservesExistingEntryAndBlocksNewEntry() throws Exception {
+        var initialLot = lotService.save(productId, supplier.getId(), LocalDate.now(), LocalDate.now().plusDays(20), BigDecimal.ONE, new BigDecimal("3.50"));
+
+        var inactive = supplierService.deactivate(supplier.getId());
+
+        assertFalse(inactive.isActive());
+        assertFalse(supplierService.findById(supplier.getId()).isActive());
+        assertEquals(1, count("SELECT COUNT(*) FROM stock_movements WHERE supplier_id=?", supplier.getId().toString()));
+        assertThrows(IllegalArgumentException.class,
+                () -> lotService.save(productId, supplier.getId(), LocalDate.now(), LocalDate.now().plusDays(25), BigDecimal.ONE, new BigDecimal("3.75")));
+        assertEquals(1, count("SELECT COUNT(*) FROM lots WHERE product_id=?", productId.toString()));
+        assertEquals(1, count("SELECT COUNT(*) FROM stock_movement_items WHERE lot_id=?", initialLot.getId().toString()));
     }
 
     private ProductService lotServiceProduct() {

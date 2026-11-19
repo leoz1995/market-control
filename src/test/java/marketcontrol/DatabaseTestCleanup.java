@@ -15,7 +15,10 @@ public final class DatabaseTestCleanup {
 
     public static void deleteCategory(UUID categoryId) {
         if (categoryId == null) return;
-        try (Connection connection = DatabaseConnection.getConnection()) {
+        try (Connection connection = DatabaseConnection.getAdminConnection()) {
+            try (var statement = connection.createStatement()) {
+                statement.execute("SET @marketcontrol_allow_origin_delete = 1");
+            }
             List<String> movementIds = new ArrayList<>();
             try (PreparedStatement query = connection.prepareStatement(
                     "SELECT DISTINCT smi.stock_movement_id FROM stock_movement_items smi JOIN lots l ON l.id = smi.lot_id JOIN products p ON p.id = l.product_id WHERE p.category_id = ?")) {

@@ -6,40 +6,37 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+
 import marketcontrol.exception.data.DataMappingException;
 
 class StockMovementItemTest {
-    @Test void createsItemWithPositiveQuantity() {
-        UUID lotId = UUID.randomUUID();
-        StockMovementItem item = StockMovementItem.create(lotId, new BigDecimal("2.5"));
+    private final UUID lotId = UUID.randomUUID();
+
+    @Test void createsItemAndCalculatesRoundedTotalCost() {
+        StockMovementItem item = StockMovementItem.create(lotId, new BigDecimal("1.333"), new BigDecimal("2.50"));
         assertNotNull(item.getId());
         assertEquals(lotId, item.getLotId());
-        assertEquals(0, new BigDecimal("2.5").compareTo(item.getQuantity()));
+        assertEquals(new BigDecimal("3.33"), item.getTotalCost());
+        assertEquals(new BigDecimal("1.01"), StockMovementItem.create(lotId, new BigDecimal("1.001"), new BigDecimal("1.005")).getTotalCost());
     }
 
-    @Test void rejectsNullLotId() {
-        assertThrows(IllegalArgumentException.class, () -> StockMovementItem.create(null, BigDecimal.ONE));
+    @Test void rejectsNullIdentifiersAndNonPositiveValues() {
+        assertThrows(IllegalArgumentException.class, () -> StockMovementItem.create(null, BigDecimal.ONE, BigDecimal.ONE));
+        assertThrows(IllegalArgumentException.class, () -> StockMovementItem.create(lotId, null, BigDecimal.ONE));
+        assertThrows(IllegalArgumentException.class, () -> StockMovementItem.create(lotId, BigDecimal.ZERO, BigDecimal.ONE));
+        assertThrows(IllegalArgumentException.class, () -> StockMovementItem.create(lotId, new BigDecimal("-1"), BigDecimal.ONE));
+        assertThrows(IllegalArgumentException.class, () -> StockMovementItem.create(lotId, BigDecimal.ONE, null));
+        assertThrows(IllegalArgumentException.class, () -> StockMovementItem.create(lotId, BigDecimal.ONE, BigDecimal.ZERO));
+        assertThrows(IllegalArgumentException.class, () -> StockMovementItem.create(lotId, BigDecimal.ONE, new BigDecimal("-0.01")));
     }
 
-    @Test void rejectsNullOrNonPositiveQuantity() {
-        UUID lotId = UUID.randomUUID();
-        assertThrows(IllegalArgumentException.class, () -> StockMovementItem.create(lotId, null));
-        assertThrows(IllegalArgumentException.class, () -> StockMovementItem.create(lotId, BigDecimal.ZERO));
-        assertThrows(IllegalArgumentException.class, () -> StockMovementItem.create(lotId, new BigDecimal("-1")));
-    }
-
-    @Test void reconstitutesItemPreservingIdentifiers() {
-        UUID itemId = UUID.randomUUID();
-        UUID lotId = UUID.randomUUID();
-        StockMovementItem item = StockMovementItem.reconstitute(itemId, lotId, BigDecimal.ONE);
-        assertEquals(itemId, item.getId());
-        assertEquals(lotId, item.getLotId());
-    }
-
-    @Test void rejectsNullIdentifiersDuringReconstitution() {
-        UUID lotId = UUID.randomUUID();
-        UUID itemId = UUID.randomUUID();
-        assertThrows(DataMappingException.class, () -> StockMovementItem.reconstitute(null, lotId, BigDecimal.ONE));
-        assertThrows(DataMappingException.class, () -> StockMovementItem.reconstitute(itemId, null, BigDecimal.ONE));
+    @Test void reconstitutesAndValidatesPersistedValues() {
+        UUID id = UUID.randomUUID();
+        StockMovementItem item = StockMovementItem.reconstitute(id, lotId, new BigDecimal("2"), new BigDecimal("4.25"));
+        assertEquals(id, item.getId());
+        assertEquals(new BigDecimal("8.50"), item.getTotalCost());
+        assertThrows(DataMappingException.class, () -> StockMovementItem.reconstitute(null, lotId, BigDecimal.ONE, BigDecimal.ONE));
+        assertThrows(DataMappingException.class, () -> StockMovementItem.reconstitute(id, lotId, BigDecimal.ZERO, BigDecimal.ONE));
+        assertThrows(DataMappingException.class, () -> StockMovementItem.reconstitute(id, lotId, BigDecimal.ONE, BigDecimal.ZERO));
     }
 }

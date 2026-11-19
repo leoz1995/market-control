@@ -1,3 +1,5 @@
 db.url=jdbc:mariadb://localhost:3306/marketcontrol
 db.user=SEU_USUARIO
 db.password=SUA_SENHA
+db.admin.user=USUARIO_ADMIN_TESTES
+db.admin.password=SENHA_ADMIN_TESTES

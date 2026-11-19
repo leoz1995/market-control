@@ -16,6 +16,7 @@ import marketcontrol.domain.model.Lot;
 import marketcontrol.domain.model.Product;
 import marketcontrol.domain.model.interfaces.ReadOnlyLot;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
+import marketcontrol.domain.model.interfaces.ReadOnlySupplier;
 import marketcontrol.domain.repository.LotRepository;
 import marketcontrol.domain.repository.ProductRepository;
 import marketcontrol.exception.PersistenceException;
@@ -34,15 +35,19 @@ public class JdbcLotRepository implements LotRepository{
 	}
 	
 	@Override
-	public void save(Connection conn, Lot lot) {
+	public void saveWithInitialEntry(Connection conn, Lot lot, ReadOnlySupplier supplier, BigDecimal unitCost) {
 		
 		if(conn == null)
 			throw new IllegalArgumentException("A conexão é obrigatória.");
 		
 		if(lot == null)
 			throw new IllegalArgumentException("O lote não pode ser null.");
-		
-		String sql = "INSERT INTO lots (id, product_id, entry_date, expiration_date, total_received_quantity, available_quantity) VALUES (?, ?, ?, ?, ?, ?)";
+		if(supplier == null)
+			throw new IllegalArgumentException("O fornecedor é obrigatório.");
+		if(unitCost == null || unitCost.compareTo(BigDecimal.ZERO) <= 0)
+			throw new IllegalArgumentException("O custo unitário deve ser maior que zero.");
+
+		String sql = "CALL create_lot_with_initial_entry(?,?,?,?,?,?,?)";
 		
 		try(PreparedStatement pstm = conn.prepareStatement(sql)){
 			
@@ -53,15 +58,13 @@ public class JdbcLotRepository implements LotRepository{
 			pstm.setString(2, lot.getProduct().getId().toString());
 			pstm.setDate(3, entry);
 			pstm.setDate(4, expires);
-			pstm.setBigDecimal(5, lot.getTotalReceivedQuantity());
-			pstm.setBigDecimal(6, lot.getAvailableQuantity());
-			
-			int affectedRows = pstm.executeUpdate();
-			if(affectedRows != 1)
-				throw new PersistenceException("A inserção do lote não afetou exatamente uma linha. Linhas afetadas: "+affectedRows);
+			pstm.setBigDecimal(5, lot.getAvailableQuantity());
+			pstm.setString(6, supplier.getId().toString());
+			pstm.setBigDecimal(7, unitCost);
+			pstm.execute();
 		}
 		catch(SQLException e) {
-			throw new PersistenceException("Não foi possível salvar esse lote.", e);
+			throw new PersistenceException("Não foi possível salvar o lote e sua ENTRY original.", e);
 		}
 	}
 
@@ -95,7 +98,7 @@ public class JdbcLotRepository implements LotRepository{
 		if (productId == null)
 			throw new IllegalArgumentException("O ID do produto é obrigatório.");
 
-		String query = "SELECT id, entry_date, expiration_date, total_received_quantity, available_quantity FROM lots WHERE product_id = ?";
+		String query = "SELECT id, entry_date, expiration_date, available_quantity FROM lots WHERE product_id = ?";
 
 		try (Connection conn = DatabaseConnection.getConnection()) {
 
@@ -209,44 +212,13 @@ public class JdbcLotRepository implements LotRepository{
 			throw new PersistenceException("Não foi possível atualizar o Lote.", e);
 		}
 	}
-
-	@Override
-	public int increaseAvailableQuantityForAdditionalEntry(Connection conn, UUID uuid, BigDecimal quantity) {
-		
-		if(conn == null)
-			throw new IllegalArgumentException("A conexão é obrigatória.");
-		
-		if(uuid == null)
-			throw new IllegalArgumentException("UUID null, preencha corretamente.");
-			
-		if(quantity == null)
-			throw new IllegalArgumentException("Quantidade nulla, preencha corretamente.");
-		
-		if(quantity.compareTo(BigDecimal.ZERO) <= 0)
-			throw new IllegalArgumentException("A quantidade não pode ser zero ou negativo.");
-		
-		String query = "UPDATE lots SET total_received_quantity = total_received_quantity + ?, available_quantity = available_quantity + ? WHERE id = ? AND expiration_date >= CURRENT_DATE";
-		
-		try(PreparedStatement pstm = conn.prepareStatement(query)){
-
-			pstm.setBigDecimal(1, quantity);
-			pstm.setBigDecimal(2, quantity);
-			pstm.setString(3, uuid.toString());
-			
-			return pstm.executeUpdate();
-		}
-		catch(SQLException e) {
-			throw new PersistenceException("Não foi possível salvar a nova entrada.", e);
-		}
-	}
 	
 	private Optional<Lot> findLot(Connection conn, UUID id){
-		String sql = "SELECT id, product_id, entry_date, expiration_date, total_received_quantity, available_quantity FROM lots WHERE id = ?";
+		String sql = "SELECT id, product_id, entry_date, expiration_date, available_quantity FROM lots WHERE id = ?";
 		
 	    UUID productId;
 	    LocalDate entry;
 	    LocalDate expires;
-	    BigDecimal totalReceived;
 	    BigDecimal available;
 
 	    try (PreparedStatement pstm = conn.prepareStatement(sql)) {
@@ -259,7 +231,6 @@ public class JdbcLotRepository implements LotRepository{
 	            productId = UUID.fromString(rs.getString("product_id"));
 	            entry = rs.getObject("entry_date", LocalDate.class);
 	            expires = rs.getObject("expiration_date", LocalDate.class);
-	            totalReceived = rs.getBigDecimal("total_received_quantity");
 	            available = rs.getBigDecimal("available_quantity");
 	        }
 
@@ -267,7 +238,7 @@ public class JdbcLotRepository implements LotRepository{
 	            .orElseThrow(() -> new DataMappingException(
 	                "O lote encontrado referencia um produto inexistente."));
 
-	        return Optional.of(Lot.reconstitute(id, product, entry, expires, totalReceived, available));
+	        return Optional.of(Lot.reconstitute(id, product, entry, expires, available));
 		}
 		catch (SQLException e) {
 	        throw new PersistenceException(
@@ -283,14 +254,13 @@ public class JdbcLotRepository implements LotRepository{
 	        LocalDate entry = rs.getObject("entry_date", LocalDate.class);
 	        LocalDate expires = rs.getObject("expiration_date", LocalDate.class);
 
-	        BigDecimal totalReceived = rs.getBigDecimal("total_received_quantity");
-
 	        BigDecimal available = rs.getBigDecimal("available_quantity");
 
-	        return Lot.reconstitute(id, product, entry, expires, totalReceived, available);
+	        return Lot.reconstitute(id, product, entry, expires, available);
 		}
 		catch(IllegalArgumentException e) {
 	        throw new DataMappingException("Falha ao mapear os dados persistidos para a entidade Lot.", e);
 		}
 	}
+
 }
