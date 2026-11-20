@@ -1,9 +1,10 @@
-package marketcontrol.infrastructure.persistence.jdbc;
+package marketcontrol.http.server.infrastructure.persistence.jdbc;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -15,9 +16,10 @@ import marketcontrol.domain.model.Product;
 import marketcontrol.domain.model.enums.UnitOfMeasure;
 import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.domain.repository.ProductRepository;
+import marketcontrol.domain.repository.ProductRepository.ProductInventorySummary;
 import marketcontrol.exception.PersistenceException;
 import marketcontrol.exception.data.DataMappingException;
-import marketcontrol.infrastructure.database.DatabaseConnection;
+import marketcontrol.http.server.infrastructure.database.DatabaseConnection;
 
 public class JdbcProductRepository implements ProductRepository{
 
@@ -51,6 +53,35 @@ public class JdbcProductRepository implements ProductRepository{
 		}
 		catch(SQLException e) {
 			throw new PersistenceException("Falha ao consultar todos os produtos.", e);
+		}
+	}
+
+	@Override
+	public List<ProductInventorySummary> findInventorySummary() {
+		String sql = """
+			SELECT p.id, p.name, p.bar_code, p.description, p.unit,
+			       c.id AS category_id, c.name AS category_name,
+			       c.description AS category_description, c.active AS category_active,
+			       COALESCE(SUM(CASE WHEN l.expiration_date >= CURRENT_DATE THEN l.available_quantity ELSE 0 END), 0) AS available_quantity,
+			       COUNT(l.id) AS lot_count
+			FROM products p
+			INNER JOIN categories c ON c.id = p.category_id
+			LEFT JOIN lots l ON l.product_id = p.id
+			GROUP BY p.id, p.name, p.bar_code, p.description, p.unit,
+			         c.id, c.name, c.description, c.active
+			ORDER BY p.name
+			""";
+		try (Connection conn = DatabaseConnection.getConnection();
+		     PreparedStatement statement = conn.prepareStatement(sql);
+		     ResultSet rs = statement.executeQuery()) {
+			List<ProductInventorySummary> summaries = new ArrayList<>();
+			while (rs.next()) {
+				summaries.add(new ProductInventorySummary(mapRow(rs),
+						rs.getBigDecimal("available_quantity"), rs.getLong("lot_count")));
+			}
+			return summaries;
+		} catch (SQLException e) {
+			throw new PersistenceException("Falha ao consultar o resumo de estoque dos produtos.", e);
 		}
 	}
 	

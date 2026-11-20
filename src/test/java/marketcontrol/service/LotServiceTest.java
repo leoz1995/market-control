@@ -21,7 +21,7 @@ import marketcontrol.domain.repository.CategoryRepository;
 import marketcontrol.domain.repository.LotRepository;
 import marketcontrol.domain.repository.ProductRepository;
 import marketcontrol.domain.repository.SupplierRepository;
-import marketcontrol.infrastructure.persistence.jdbc.JdbcTransactionManager;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcTransactionManager;
 import marketcontrol.service.CategoryService;
 import marketcontrol.service.ProductService;
 import marketcontrol.service.SupplierService;

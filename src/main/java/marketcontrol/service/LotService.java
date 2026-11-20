@@ -10,6 +10,7 @@ import marketcontrol.domain.model.interfaces.ReadOnlyLot;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 import marketcontrol.domain.model.interfaces.ReadOnlySupplier;
 import marketcontrol.domain.repository.LotRepository;
+import marketcontrol.exception.ResourceNotFoundException;
 import marketcontrol.transaction.TransactionManager;
 
 public class LotService{
@@ -60,7 +61,8 @@ public class LotService{
 	}
 
 	public ReadOnlyLot findById(UUID id){
-		return lotRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("ID inválido."));
+		if (id == null) throw new IllegalArgumentException("ID inválido.");
+		return lotRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Lote não encontrado."));
 	}
 
 	public List<Lot> findByProductId(UUID productId){

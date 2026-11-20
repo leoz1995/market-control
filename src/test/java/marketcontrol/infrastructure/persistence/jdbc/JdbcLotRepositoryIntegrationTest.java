@@ -16,6 +16,11 @@ import marketcontrol.domain.model.Supplier;
 import marketcontrol.domain.model.enums.UnitOfMeasure;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 import marketcontrol.domain.repository.ProductRepository;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcCategoryRepository;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcLotRepository;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcProductRepository;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcSupplierRepository;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcTransactionManager;
 import marketcontrol.service.CategoryService;
 import marketcontrol.service.ProductService;
 
@@ -42,7 +47,7 @@ class JdbcLotRepositoryIntegrationTest {
     @AfterEach void cleanUp() {
         DatabaseTestCleanup.deleteCategory(categoryId);
         if (supplier != null) {
-            try (var c = marketcontrol.infrastructure.database.DatabaseConnection.getConnection(); var p = c.prepareStatement("DELETE FROM suppliers WHERE id=?")) {
+            try (var c = marketcontrol.http.server.infrastructure.database.DatabaseConnection.getConnection(); var p = c.prepareStatement("DELETE FROM suppliers WHERE id=?")) {
                 p.setString(1, supplier.getId().toString()); p.executeUpdate();
             } catch (Exception e) { throw new AssertionError("Could not clean lot repository supplier fixture", e); }
         }

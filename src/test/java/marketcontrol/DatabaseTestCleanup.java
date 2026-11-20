@@ -7,7 +7,8 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import marketcontrol.infrastructure.database.DatabaseConnection;
+
+import marketcontrol.http.server.infrastructure.database.DatabaseConnection;
 
 /** Remove only rows created by an integration test, respecting the foreign keys. */
 public final class DatabaseTestCleanup {

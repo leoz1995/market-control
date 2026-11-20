@@ -15,7 +15,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import marketcontrol.exception.PersistenceException;
-import marketcontrol.infrastructure.database.DatabaseConnection;
+import marketcontrol.http.server.infrastructure.database.DatabaseConnection;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcTransactionManager;
 
 class JdbcTransactionManagerIntegrationTest {
     private final JdbcTransactionManager transactions = new JdbcTransactionManager();

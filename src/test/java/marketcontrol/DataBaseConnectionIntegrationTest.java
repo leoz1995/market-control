@@ -3,7 +3,8 @@ package marketcontrol;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import java.sql.Connection;
 import org.junit.jupiter.api.Test;
-import marketcontrol.infrastructure.database.DatabaseConnection;
+
+import marketcontrol.http.server.infrastructure.database.DatabaseConnection;
 
 class DataBaseConnectionIntegrationTest {
     @Test void shouldOpenMariaDbConnection() throws Exception {

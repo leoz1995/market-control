@@ -1,4 +1,4 @@
-package marketcontrol.infrastructure.database;
+package marketcontrol.http.server.infrastructure.database;
 
 import java.io.IOException;
 import java.io.InputStream;

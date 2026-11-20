@@ -9,6 +9,9 @@ import marketcontrol.domain.model.enums.UnitOfMeasure;
 import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 import marketcontrol.domain.repository.ProductRepository;
+import marketcontrol.domain.repository.ProductRepository.ProductInventorySummary;
+import marketcontrol.exception.ConflictException;
+import marketcontrol.exception.ResourceNotFoundException;
 import marketcontrol.dtos.ProductDTO;
 
 public class ProductService {
@@ -34,7 +37,7 @@ public class ProductService {
 		
 		String normalizedBarCode = normalizeBarCode(product.getBarCode());
 		if(productRepository.existsByBarCode(normalizedBarCode))
-			throw new IllegalArgumentException("Já existe um produto com esse código de barras.");
+			throw new ConflictException("Já existe um produto com esse código de barras.");
 		
 		productRepository.save(product);
 		
@@ -49,14 +52,14 @@ public class ProductService {
 			throw new IllegalArgumentException("Produto não foi identificado.");
 
 		Product product = productRepository.findProductById(uuid)
-				.orElseThrow(() -> new IllegalArgumentException("Produto com UUID informado não foi encontrado."));
+				.orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado."));
 		
 		if(dto.unit() != product.getUnit())
 		    throw new IllegalArgumentException("A unidade de medida não pode ser alterada.");
 		
 		String normalizedBarCode = normalizeBarCode(dto.barCode());
 		if(productRepository.existsByBarCodeAndIdNot(normalizedBarCode, uuid))
-			throw new IllegalArgumentException("Esse código de barra já está em uso por outro produto.");
+			throw new ConflictException("Esse código de barras já está em uso por outro produto.");
 
 		ReadOnlyCategory category = product.getCategory();
 		if(dto.categoryId() != null)
@@ -76,11 +79,11 @@ public class ProductService {
 	
 	public ReadOnlyProduct findById(UUID productId) {
 		return productRepository.findProductById(productId)
-				.orElseThrow(() -> new IllegalArgumentException("Produto com UUID informado não foi encontrado."));
+				.orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado."));
 	}
 	
 	public ReadOnlyProduct findByBarCode(String barCode) {
-		return productRepository.findByBarCode(barCode).orElseThrow(() -> new IllegalArgumentException("Código de barras não corresponde à um produto cadastrado."));
+		return productRepository.findByBarCode(barCode).orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado para o código de barras informado."));
 	}
 	
 	private String normalizeBarCode(String barCode) {
@@ -92,5 +95,9 @@ public class ProductService {
 	
 	public List<ReadOnlyProduct> getProducts(){
 		return productRepository.findAll().stream().map(prod -> (ReadOnlyProduct) prod).toList();
+	}
+
+	public List<ProductInventorySummary> getInventorySummary() {
+		return productRepository.findInventorySummary();
 	}
 }

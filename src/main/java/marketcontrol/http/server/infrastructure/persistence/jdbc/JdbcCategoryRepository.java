@@ -1,4 +1,4 @@
-package marketcontrol.infrastructure.persistence.jdbc;
+package marketcontrol.http.server.infrastructure.persistence.jdbc;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -12,7 +12,7 @@ import java.util.UUID;
 import marketcontrol.domain.model.Category;
 import marketcontrol.domain.repository.CategoryRepository;
 import marketcontrol.exception.PersistenceException;
-import marketcontrol.infrastructure.database.DatabaseConnection;
+import marketcontrol.http.server.infrastructure.database.DatabaseConnection;
 
 public class JdbcCategoryRepository implements CategoryRepository{
 	

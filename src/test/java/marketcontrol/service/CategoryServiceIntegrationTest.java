@@ -6,8 +6,9 @@ import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import marketcontrol.infrastructure.persistence.jdbc.JdbcCategoryRepository;
+
 import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcCategoryRepository;
 import marketcontrol.DatabaseTestCleanup;
 
 class CategoryServiceIntegrationTest {

@@ -1,4 +1,4 @@
-package marketcontrol.infrastructure.persistence.jdbc;
+package marketcontrol.http.server.infrastructure.persistence.jdbc;
 
 import java.math.BigDecimal;
 import java.sql.Connection;

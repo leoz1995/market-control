@@ -14,8 +14,8 @@ import org.junit.jupiter.api.Test;
 
 import marketcontrol.domain.model.Supplier;
 import marketcontrol.domain.repository.SupplierRepository;
-import marketcontrol.exception.data.DataMappingException;
 import marketcontrol.exception.PersistenceException;
+import marketcontrol.exception.ResourceNotFoundException;
 
 class SupplierServiceTest {
     @Test void savesSupplierAndRejectsDuplicateDocumentBeforeInsert() {
@@ -40,8 +40,8 @@ class SupplierServiceTest {
         SupplierRepository repository = (SupplierRepository) Proxy.newProxyInstance(SupplierRepository.class.getClassLoader(), new Class<?>[]{SupplierRepository.class}, (p,m,a)-> m.getName().equals("existsByDocument") ? false : Optional.empty());
         SupplierService service = new SupplierService(repository);
         assertThrows(IllegalArgumentException.class, () -> service.existsByDocument(" "));
-        assertThrows(DataMappingException.class, () -> service.findById(null));
-        assertThrows(DataMappingException.class, () -> service.findById(UUID.randomUUID()));
+        assertThrows(IllegalArgumentException.class, () -> service.findById(null));
+        assertThrows(ResourceNotFoundException.class, () -> service.findById(UUID.randomUUID()));
     }
 
     @Test void updatesSupplierAndRejectsDuplicateDocument() {

@@ -5,7 +5,8 @@ import java.util.UUID;
 import marketcontrol.domain.model.Supplier;
 import marketcontrol.domain.model.interfaces.ReadOnlySupplier;
 import marketcontrol.domain.repository.SupplierRepository;
-import marketcontrol.exception.data.DataMappingException;
+import marketcontrol.exception.ConflictException;
+import marketcontrol.exception.ResourceNotFoundException;
 
 public class SupplierService {
 
@@ -21,7 +22,7 @@ public class SupplierService {
     public Supplier save(String legalName, String tradeName, String document, String email, String phone, String contactName) {
 
         if(document != null && existsByDocument(document))
-            throw new IllegalArgumentException("O documento enviado já está em uso por outro fornecedor.");
+            throw new ConflictException("O documento enviado já está em uso por outro fornecedor.");
 
         Supplier supplier = Supplier.create(legalName, tradeName, document, email, phone, contactName);
         supplierRepository.save(supplier);
@@ -30,7 +31,8 @@ public class SupplierService {
     }
 
     public ReadOnlySupplier findById(UUID uuid) {
-        return supplierRepository.findById(uuid).orElseThrow(() -> new DataMappingException("Supplier ID não encontrado."));
+        if (uuid == null) throw new IllegalArgumentException("O ID do fornecedor é obrigatório.");
+        return supplierRepository.findById(uuid).orElseThrow(() -> new ResourceNotFoundException("Fornecedor não encontrado."));
     }
 
     public ReadOnlySupplier update(UUID id, String legalName, String tradeName, String document, String email, String phone, String contactName) {
@@ -39,7 +41,7 @@ public class SupplierService {
 
         supplier.edit(legalName, tradeName, document, email, phone, contactName);
         if(!currentDocument.equals(supplier.getDocument()) && supplierRepository.existsByDocument(supplier.getDocument()))
-            throw new IllegalArgumentException("O documento enviado já está em uso por outro fornecedor.");
+            throw new ConflictException("O documento enviado já está em uso por outro fornecedor.");
 
         supplierRepository.update(supplier);
         return supplier;
@@ -57,7 +59,7 @@ public class SupplierService {
             throw new IllegalArgumentException("O ID do fornecedor é obrigatório.");
 
         return supplierRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Fornecedor não encontrado."));
+                .orElseThrow(() -> new ResourceNotFoundException("Fornecedor não encontrado."));
     }
 
     public boolean existsByDocument(String document) {

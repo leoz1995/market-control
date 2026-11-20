@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.sql.SQLException;
 import java.sql.PreparedStatement;
 import java.sql.Connection;
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.AfterEach;
@@ -15,8 +16,10 @@ import marketcontrol.DatabaseTestCleanup;
 import marketcontrol.domain.model.enums.UnitOfMeasure;
 import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
-import marketcontrol.infrastructure.database.DatabaseConnection;
 import marketcontrol.exception.PersistenceException;
+import marketcontrol.http.server.infrastructure.database.DatabaseConnection;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcCategoryRepository;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcProductRepository;
 import marketcontrol.domain.model.Product;
 import marketcontrol.service.CategoryService;
 import marketcontrol.service.ProductService;
@@ -26,9 +29,11 @@ class JdbcProductRepositoryIntegrationTest {
     private JdbcProductRepository repository;
     private ReadOnlyCategory category;
     private ReadOnlyProduct product;
+    private List<UUID> preexistingProductIds;
 
     @BeforeEach void setUp() {
         repository = new JdbcProductRepository();
+        preexistingProductIds = repository.findAll().stream().map(item -> item.getId()).toList();
         CategoryService categories = new CategoryService(new JdbcCategoryRepository());
         ProductService products = new ProductService(repository, categories);
         category = categories.saveCategory("Jdbc product " + run, "Category description", true);
@@ -69,11 +74,11 @@ class JdbcProductRepositoryIntegrationTest {
         assertTrue(repository.findProductById(UUID.randomUUID()).isEmpty());
     }
 
-    @Test void findAllReturnsEmptyWhenTheTestHasNoProducts() {
+    @Test void findAllLeavesPreexistingProductsAfterTheTestFixtureIsRemoved() {
         DatabaseTestCleanup.deleteCategory(category.getId());
         category = null;
 
-        assertTrue(repository.findAll().isEmpty());
+        assertEquals(preexistingProductIds, repository.findAll().stream().map(item -> item.getId()).toList());
     }
 
     @Test void findsProductWithRepositoryManagedConnectionAndMapsRelatedValues() {

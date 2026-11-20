@@ -13,6 +13,7 @@ import marketcontrol.domain.model.enums.MovementType;
 import marketcontrol.domain.model.interfaces.ReadOnlySupplier;
 import marketcontrol.domain.repository.LotRepository;
 import marketcontrol.domain.repository.StockMovementRepository;
+import marketcontrol.exception.ConflictException;
 import marketcontrol.transaction.TransactionManager;
 
 public class StockMovementService {
@@ -64,7 +65,7 @@ public class StockMovementService {
 			if(affectedRows == 1)
 				stockMovementRepository.save(conn, stockMovement);
 			else if(affectedRows == 0)
-				throw new IllegalArgumentException("Lote inexistente, validade ultrapassada ou quantidade insuficiente.");
+				throw new ConflictException("Não foi possível concluir a venda: lote inexistente, vencido ou com saldo insuficiente.");
 			else
 				throw new IllegalStateException("Situação inesperada na operação de venda.");
 		});
@@ -86,7 +87,7 @@ public class StockMovementService {
 			if(affectedRows == 1)
 				stockMovementRepository.save(conn, stockMovement);
 			else if(affectedRows == 0)
-				throw new IllegalArgumentException("Lote inexistente, quantidade insuficiente ou produto inexistente.");
+				throw new ConflictException("Não foi possível registrar a perda: lote inexistente ou com saldo insuficiente.");
 			else
 				throw new IllegalStateException("Situação inesperada na operação de perda.");
 		});

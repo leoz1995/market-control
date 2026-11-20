@@ -22,12 +22,12 @@ import marketcontrol.domain.model.enums.UnitOfMeasure;
 import marketcontrol.domain.repository.LotRepository;
 import marketcontrol.domain.repository.SupplierRepository;
 import marketcontrol.exception.PersistenceException;
-import marketcontrol.infrastructure.database.DatabaseConnection;
-import marketcontrol.infrastructure.persistence.jdbc.JdbcCategoryRepository;
-import marketcontrol.infrastructure.persistence.jdbc.JdbcLotRepository;
-import marketcontrol.infrastructure.persistence.jdbc.JdbcProductRepository;
-import marketcontrol.infrastructure.persistence.jdbc.JdbcSupplierRepository;
-import marketcontrol.infrastructure.persistence.jdbc.JdbcTransactionManager;
+import marketcontrol.http.server.infrastructure.database.DatabaseConnection;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcCategoryRepository;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcLotRepository;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcProductRepository;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcSupplierRepository;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcTransactionManager;
 
 class LotServiceIntegrationTest {
     private final String run = UUID.randomUUID().toString();

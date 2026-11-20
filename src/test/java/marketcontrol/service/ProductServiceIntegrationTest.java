@@ -5,13 +5,14 @@ import java.util.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import marketcontrol.infrastructure.persistence.jdbc.JdbcCategoryRepository;
-import marketcontrol.infrastructure.persistence.jdbc.JdbcProductRepository;
+
 import marketcontrol.domain.model.*;
 import marketcontrol.domain.model.enums.UnitOfMeasure;
 import marketcontrol.domain.model.interfaces.*;
 import marketcontrol.domain.repository.*;
 import marketcontrol.dtos.ProductDTO;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcCategoryRepository;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcProductRepository;
 import marketcontrol.DatabaseTestCleanup;
 
 class ProductServiceIntegrationTest {

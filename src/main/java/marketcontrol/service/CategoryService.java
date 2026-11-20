@@ -6,6 +6,8 @@ import java.util.UUID;
 import marketcontrol.domain.model.Category;
 import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.domain.repository.CategoryRepository;
+import marketcontrol.exception.ConflictException;
+import marketcontrol.exception.ResourceNotFoundException;
 
 public class CategoryService {
 
@@ -24,7 +26,7 @@ public class CategoryService {
 		boolean existsName = categoryRepository.existsByName(category.getName());
 		
 		if(existsName)
-			throw new IllegalArgumentException("A categoria "+category.getName()+" já está cadastrada.");
+			throw new ConflictException("A categoria "+category.getName()+" já está cadastrada.");
 		
 		categoryRepository.save(category);
 		return category;
@@ -32,10 +34,10 @@ public class CategoryService {
 	
 	public ReadOnlyCategory editCategory(UUID id, String name, String description, boolean active) {
 		Category category = categoryRepository.findById(id)
-				.orElseThrow(() -> new IllegalArgumentException("Categoria inexistente."));
+				.orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada."));
 		
 		if(categoryRepository.existsByNameAndIdNot(name, id))
-			throw new IllegalArgumentException("O nome "+name+" já está em uso.");
+			throw new ConflictException("O nome "+name+" já está em uso.");
 		
 		category.edit(name, description, active);
 		categoryRepository.update(category);
@@ -47,7 +49,7 @@ public class CategoryService {
 		if(id == null)
 			throw new IllegalArgumentException("O ID da categoria é obrigatório.");
 		
-		return categoryRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Categoria não encontrada."));
+		return categoryRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada."));
 	}
 	public List<ReadOnlyCategory> getCategories() {
 	    return categoryRepository.findAll()

@@ -1,4 +1,4 @@
-package marketcontrol.infrastructure.persistence.jdbc;
+package marketcontrol.http.server.infrastructure.persistence.jdbc;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -13,7 +13,7 @@ import java.util.UUID;
 import marketcontrol.domain.model.Supplier;
 import marketcontrol.domain.repository.SupplierRepository;
 import marketcontrol.exception.PersistenceException;
-import marketcontrol.infrastructure.database.DatabaseConnection;
+import marketcontrol.http.server.infrastructure.database.DatabaseConnection;
 
 public class JdbcSupplierRepository implements SupplierRepository {
 

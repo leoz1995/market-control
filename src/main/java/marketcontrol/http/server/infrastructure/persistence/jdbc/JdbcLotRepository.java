@@ -1,4 +1,4 @@
-package marketcontrol.infrastructure.persistence.jdbc;
+package marketcontrol.http.server.infrastructure.persistence.jdbc;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -21,7 +21,7 @@ import marketcontrol.domain.repository.LotRepository;
 import marketcontrol.domain.repository.ProductRepository;
 import marketcontrol.exception.PersistenceException;
 import marketcontrol.exception.data.DataMappingException;
-import marketcontrol.infrastructure.database.DatabaseConnection;
+import marketcontrol.http.server.infrastructure.database.DatabaseConnection;
 
 public class JdbcLotRepository implements LotRepository{
 

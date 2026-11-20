@@ -24,7 +24,12 @@ import marketcontrol.domain.model.enums.MovementType;
 import marketcontrol.domain.model.enums.UnitOfMeasure;
 import marketcontrol.domain.repository.StockMovementRepository;
 import marketcontrol.exception.PersistenceException;
-import marketcontrol.infrastructure.database.DatabaseConnection;
+import marketcontrol.http.server.infrastructure.database.DatabaseConnection;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcLotRepository;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcProductRepository;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcStockMovementRepository;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcSupplierRepository;
+import marketcontrol.http.server.infrastructure.persistence.jdbc.JdbcTransactionManager;
 import marketcontrol.service.SupplierService;
 import marketcontrol.service.StockMovementService;
 

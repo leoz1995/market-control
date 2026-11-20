@@ -1,10 +1,10 @@
-package marketcontrol.infrastructure.persistence.jdbc;
+package marketcontrol.http.server.infrastructure.persistence.jdbc;
 
 import java.sql.Connection;
 import java.sql.SQLException;
 
 import marketcontrol.exception.PersistenceException;
-import marketcontrol.infrastructure.database.DatabaseConnection;
+import marketcontrol.http.server.infrastructure.database.DatabaseConnection;
 import marketcontrol.transaction.TransactionAction;
 import marketcontrol.transaction.TransactionManager;
 import marketcontrol.transaction.TransactionWork;
