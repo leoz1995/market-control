@@ -1,6 +1,6 @@
 # Contratos HTTP do MarketControl
 
-Base local padrão: `http://127.0.0.1:8080`. Todos os endpoints ficam sob `/api`; requests e responses JSON usam UTF-8. A API não exige autenticação e deve permanecer restrita ao ambiente local.
+Base local padrão: `http://127.0.0.1:8080`. Todos os endpoints ficam sob `/api`; requests e responses JSON usam UTF-8. `health`, login, refresh e logout são públicos. As rotas de negócio exigem `Authorization: Bearer <accessToken>`; usuários administrativos só podem ser geridos por ADMIN.
 
 ## Rotas
 
@@ -26,8 +26,16 @@ Base local padrão: `http://127.0.0.1:8080`. Todos os endpoints ficam sob `/api`
 | GET | `/api/lots/{id}` | `200` ou `404`. |
 | POST | `/api/lots/{id}/sales` | `204`; JSON `{ "quantity": 2.000 }`. |
 | POST | `/api/lots/{id}/losses` | `204`; JSON `{ "quantity": 1.000, "cause": "Produto danificado" }`. |
+| POST | `/api/auth/login` | `200` com access token de 15 min, refresh token e usuário. |
+| POST | `/api/auth/refresh` | `200`; troca refresh token por um novo par de tokens. |
+| POST | `/api/auth/logout` | `204`; body `{ "refreshToken": "..." }`, revoga a sessão. |
+| GET | `/api/users` | `200` com contas sem campos de senha; somente ADMIN. |
+| POST | `/api/users` | `201`; cria usuário com `{ "name", "email", "password", "role" }`; papel omitido cria conta INACTIVE. |
+| PUT | `/api/users/{id}/role` | `200`; body `{ "role": "ADMIN" | "STOCK_OPERATOR" | "INACTIVE" }`. |
+| POST | `/api/users/{id}/activation` | `200`; body `{ "role": "ADMIN" | "STOCK_OPERATOR" }`. |
+| POST | `/api/users/{id}/deactivation` | `200`; desativa e revoga todas as sessões da conta. |
 
-Os métodos implementados são `GET`, `POST` e `PUT`; não há `PATCH` ou `DELETE`. Fornecedores podem ser inativados pela rota de ação indicada acima. Não existe rota para listar todos os fornecedores nem para consultar histórico de movimentos.
+Os métodos implementados são `GET`, `POST` e `PUT`; não há `PATCH` ou `DELETE`. Fornecedores podem ser inativados pela rota de ação indicada acima. Não existe rota para listar todos os fornecedores nem para consultar histórico de movimentos. Operadores podem ler dados e registrar recebimentos/vendas/perdas; mutações de cadastro e rotas de usuários exigem ADMIN.
 
 `{id}` é UUID. Unidade usa `UNIT`, `KILOGRAM`, `GRAM`, `LITER` ou `MILLILITER`. Quantidades e custos são decimais JSON e precisam respeitar as validações do domínio.
 
@@ -107,6 +115,6 @@ Erros são JSON e carregam o mesmo identificador no corpo e no header `X-Request
 - `500`: falha inesperada ou persistência; detalhes ficam no log correlacionado por request ID.
 - `503`: falha transitória de conexão com banco reconhecida na cadeia de causa.
 
-Respostas incluem `X-Content-Type-Options: nosniff` e `Cache-Control: no-store`. CORS aceita uma origem exata configurável por `-Dmarketcontrol.http.cors.allowed-origin`, além de `GET`, `POST`, `PUT`, `OPTIONS` e o header `Content-Type`. CORS não substitui autenticação/autorização.
+Respostas incluem `X-Content-Type-Options: nosniff` e `Cache-Control: no-store`. CORS aceita uma origem exata configurável por `-Dmarketcontrol.http.cors.allowed-origin`, além de `GET`, `POST`, `PUT`, `OPTIONS` e os headers `Content-Type` e `Authorization`. CORS não substitui autenticação/autorização. Access tokens expirados retornam `401 TOKEN_EXPIRED`; refresh tokens são rotacionados e guardados no banco apenas como hash.
 
-Os endpoints são desenvolvidos iterativamente com auxílio de IA e revisados em relação às regras de domínio e aos testes. Decisões de escopo e revisão final permanecem sob responsabilidade do autor. Autenticação/autorização ainda não estão implementadas; as entidades correspondentes serão modeladas manualmente em uma etapa futura.
+O backend também oferece HTTPS com keystore externo. Use `MARKETCONTROL_REQUIRE_HTTPS=true` em deploy, defina `MARKETCONTROL_TLS_KEYSTORE` e `MARKETCONTROL_TLS_KEYSTORE_PASSWORD`, e configure `MARKETCONTROL_ENV=production` com `MARKETCONTROL_JWT_SECRET` de pelo menos 32 bytes fornecido por secret manager. O modo HTTP sem TLS só inicia no loopback.

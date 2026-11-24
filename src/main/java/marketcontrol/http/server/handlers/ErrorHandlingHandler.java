@@ -9,7 +9,13 @@ import java.util.UUID;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import marketcontrol.exception.AuthenticationException;
+import marketcontrol.exception.AuthenticationRequiredException;
+import marketcontrol.exception.AuthorizationException;
+import marketcontrol.exception.InvalidTokenException;
+import marketcontrol.exception.TokenExpiredException;
 import marketcontrol.exception.ConflictException;
+import marketcontrol.exception.InactiveAccountException;
 import marketcontrol.exception.PersistenceException;
 import marketcontrol.exception.ResourceNotFoundException;
 import marketcontrol.http.server.ApiException;
@@ -63,6 +69,24 @@ public class ErrorHandlingHandler implements HttpHandler {
     private static ErrorDetails classify(Exception exception) {
         if (exception instanceof ApiException apiException) {
             return new ErrorDetails(apiException.getStatus(), apiException.getCode(), apiException.getMessage());
+        }
+        if (exception instanceof AuthenticationException) {
+            return new ErrorDetails(401, "INVALID_CREDENTIALS", exception.getMessage());
+        }
+        if (exception instanceof AuthenticationRequiredException) {
+            return new ErrorDetails(401, "AUTHENTICATION_REQUIRED", exception.getMessage());
+        }
+        if (exception instanceof TokenExpiredException) {
+            return new ErrorDetails(401, "TOKEN_EXPIRED", exception.getMessage());
+        }
+        if (exception instanceof InvalidTokenException) {
+            return new ErrorDetails(401, "INVALID_TOKEN", exception.getMessage());
+        }
+        if (exception instanceof AuthorizationException) {
+            return new ErrorDetails(403, "FORBIDDEN", exception.getMessage());
+        }
+        if (exception instanceof InactiveAccountException) {
+            return new ErrorDetails(403, "ACCOUNT_INACTIVE", exception.getMessage());
         }
         if (exception instanceof ResourceNotFoundException) {
             return new ErrorDetails(404, "NOT_FOUND", exception.getMessage());

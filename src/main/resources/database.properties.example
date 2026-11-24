@@ -6,3 +6,7 @@ db.password=ALTERE_PARA_A_SENHA_DA_CONTA
 # Credenciais administrativas são usadas somente na limpeza de fixtures de integração.
 # Passe-as como propriedades da JVM ao executar os testes; não as guarde neste arquivo:
 # mvn test -Ddb.admin.user=USUARIO_ADMIN_TESTES -Ddb.admin.password=SUA_SENHA_ADMIN
+
+
+# For local HTTP development only, optionally set jwt.secret in the ignored
+# database.properties file. Production must use MARKETCONTROL_JWT_SECRET.

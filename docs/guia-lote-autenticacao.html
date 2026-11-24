@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>MarketControl | Lote atômico e autenticação atual</title>
+  <style>
+    :root { --ink:#182435; --muted:#526174; --paper:#f5f7fb; --card:#fff; --line:#dce3ed; --blue:#245b9e; --blue-soft:#eaf2fc; --green:#176b51; --green-soft:#e8f5ef; --amber:#865616; --amber-soft:#fff4dc; --shadow:0 12px 34px #1d35520c; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.68 system-ui,-apple-system,"Segoe UI",sans-serif; }
+    header { padding:58px 24px 46px; background:linear-gradient(135deg,#122d4b,#245b9e 72%,#41818d); color:#fff; }
+    .wrap { width:min(920px,100% - 32px); margin:auto; }
+    .eyebrow { text-transform:uppercase; letter-spacing:.14em; font-size:.76rem; font-weight:750; opacity:.78; }
+    h1 { max-width:760px; margin:.4rem 0 .7rem; font-size:clamp(2rem,5vw,3.25rem); line-height:1.13; letter-spacing:-.035em; }
+    header p { max-width:710px; margin:0; color:#e4eef9; font-size:1.08rem; }
+    main { padding:30px 0 70px; }
+    section,.card { background:var(--card); border:1px solid var(--line); border-radius:18px; box-shadow:var(--shadow); }
+    section { padding:clamp(22px,4vw,38px); margin:20px 0; }
+    h2 { font-size:1.65rem; line-height:1.25; margin:0 0 12px; letter-spacing:-.02em; }
+    h3 { margin:26px 0 7px; font-size:1.12rem; }
+    p { margin:.55rem 0 1rem; }
+    .intro { color:var(--muted); font-size:1.04rem; }
+    .path { display:inline-block; color:var(--blue); background:var(--blue-soft); padding:2px 8px; border-radius:6px; font: .9em ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
+    .callout { padding:16px 18px; border-radius:12px; margin:18px 0; background:var(--blue-soft); border-left:4px solid var(--blue); }
+    .callout.green { background:var(--green-soft); border-color:var(--green); }
+    .callout.amber { background:var(--amber-soft); border-color:#c18a2e; }
+    .steps { counter-reset:step; list-style:none; padding:0; margin:24px 0; }
+    .steps li { counter-increment:step; position:relative; padding:0 0 24px 56px; min-height:50px; }
+    .steps li::before { content:counter(step); position:absolute; left:0; top:0; width:36px; height:36px; display:grid; place-items:center; border-radius:50%; background:var(--blue); color:#fff; font-weight:800; }
+    .steps li:not(:last-child)::after { content:""; position:absolute; left:17px; top:38px; bottom:2px; width:2px; background:var(--line); }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin:18px 0; }
+    .card { padding:18px; box-shadow:none; }
+    .card h3 { margin:0 0 6px; }
+    .tag { display:inline-block; margin-bottom:8px; font-size:.75rem; font-weight:750; color:var(--green); text-transform:uppercase; letter-spacing:.08em; }
+    table { width:100%; border-collapse:collapse; margin:16px 0; font-size:.95rem; }
+    th,td { text-align:left; vertical-align:top; border-bottom:1px solid var(--line); padding:11px 10px; }
+    th { color:var(--muted); font-size:.82rem; text-transform:uppercase; letter-spacing:.05em; }
+    .flow { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:16px; background:#f5f8fc; border:1px solid var(--line); border-radius:12px; font-weight:650; }
+    .flow span { padding:7px 10px; border:1px solid var(--line); background:#fff; border-radius:8px; }
+    .flow b { color:var(--blue); }
+    ul,ol { padding-left:1.3rem; }
+    li { padding-left:.15rem; margin:.35rem 0; }
+    footer { color:var(--muted); text-align:center; font-size:.88rem; padding:10px 20px 36px; }
+    @media print { body { background:#fff; } header { padding:28px; } section,.card { box-shadow:none; break-inside:avoid; } }
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">Guia de estudo pessoal · MarketControl</div>
+    <h1>Como nasce um lote e como funciona a autenticação</h1>
+    <p>Um percurso visual pela criação atômica de lotes e pelo modelo atual de login, sessões e papéis do MarketControl, com caminhos de evolução para permissões mais detalhadas.</p>
+  </div>
+</header>
+<main class="wrap">
+  <section>
+    <h2>1. A ideia central: um lote precisa nascer com sua origem</h2>
+    <p class="intro">No MarketControl, criar um lote significa registrar mais do que o saldo atual. O sistema também precisa guardar qual foi a entrada inicial, de qual fornecedor ela veio e qual era o custo unitário naquele recebimento.</p>
+    <div class="flow" aria-label="Fluxo de criação do lote">
+      <span>Pedido HTTP</span><b>→</b><span>LotHandler</span><b>→</b><span>LotService</span><b>→</b><span>JdbcLotRepository</span><b>→</b><span>Procedure MariaDB</span>
+    </div>
+    <p>O handler interpreta o pedido; o serviço valida relações e regras de negócio; o repositório traduz os dados para JDBC. A procedure do banco coordena as gravações que precisam ficar consistentes entre si.</p>
+    <div class="callout"><strong>Três registros ligados:</strong> o lote, o movimento de estoque do tipo <strong>ENTRY</strong> e o item desse movimento. Se a entrada inicial não existir, o sistema perde a origem confiável do saldo e do custo histórico.</div>
+  </section>
+
+  <section>
+    <h2>2. O caminho, passo a passo</h2>
+    <ol class="steps">
+      <li><strong>O cliente pede a criação.</strong> Envia produto, fornecedor, data de entrada, validade, quantidade inicial e custo unitário para <span class="path">POST /api/lots</span>.</li>
+      <li><strong>O LotHandler lê o pedido.</strong> Converte o JSON para o DTO da requisição e chama <span class="path">LotService.save</span>. Ele também monta a resposta HTTP quando a operação termina.</li>
+      <li><strong>O serviço confirma as referências.</strong> Busca produto e fornecedor. O fornecedor precisa estar ativo. O domínio de <span class="path">Lot</span> verifica, entre outras coisas, datas coerentes e quantidade inicial positiva.</li>
+      <li><strong>O serviço abre a transação.</strong> O <span class="path">JdbcTransactionManager</span> obtém uma conexão e desativa o autocommit. Assim, o commit ou rollback final controla o conjunto de gravações.</li>
+      <li><strong>O repositório prepara a chamada.</strong> <span class="path">JdbcLotRepository.saveWithInitialEntry</span> chama <span class="path">create_lot_with_initial_entry</span> usando um <span class="path">PreparedStatement</span> do tipo chamada de procedure. Java envia valores tipados; não monta os INSERTs do lote e do movimento nessa função.</li>
+      <li><strong>A procedure valida e grava.</strong> Ela valida quantidade, custo, datas e fornecedor ativo; cria um UUID para o movimento; insere o lote, o movimento ENTRY e o item que liga o movimento ao lote.</li>
+      <li><strong>A transação fecha.</strong> Como a aplicação chamou a procedure com autocommit desligado, o TransactionManager da aplicação confirma ao final. Se ocorrer erro, ele faz rollback. A procedure também consegue controlar a transação quando chamada por uma sessão em autocommit, mas detecta se ela própria a iniciou.</li>
+      <li><strong>A API responde.</strong> Com sucesso, o handler devolve <span class="path">201 Created</span> e o endereço do lote criado. Se houver falha, a transação não deve deixar somente parte da operação gravada.</li>
+    </ol>
+    <div class="callout amber"><strong>Detalhe importante:</strong> a procedure não é apenas um atalho para uma query. Ela centraliza a operação protegida no banco. A regra é reforçada porque <span class="path">marketcontrol_app</span> pode executar a procedure, mas não tem INSERT direto na tabela <span class="path">lots</span>.</div>
+  </section>
+
+  <section>
+    <h2>3. Os sete parâmetros da chamada</h2>
+    <p>O número de parâmetros no JDBC corresponde à assinatura da procedure. Os parâmetros 1 a 7 são preenchidos pelo repositório na mesma ordem:</p>
+    <table>
+      <thead><tr><th>#</th><th>Valor enviado</th><th>Para que serve</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>ID do lote</td><td>Identifica o lote que será criado; é gerado antes da chamada.</td></tr>
+        <tr><td>2</td><td>ID do produto</td><td>Associa o lote ao produto cadastrado.</td></tr>
+        <tr><td>3</td><td>Data de entrada</td><td>Registra quando o recebimento entrou no estoque.</td></tr>
+        <tr><td>4</td><td>Data de vencimento</td><td>Permite bloquear venda vencida e calcular alertas.</td></tr>
+        <tr><td>5</td><td>Quantidade inicial</td><td>É o saldo com que o lote começa e também a quantidade do item ENTRY.</td></tr>
+        <tr><td>6</td><td>ID do fornecedor</td><td>Identifica a origem do recebimento; o fornecedor deve estar ativo.</td></tr>
+        <tr><td>7</td><td>Custo unitário</td><td>Fica no item ENTRY como custo histórico daquele lote.</td></tr>
+      </tbody>
+    </table>
+    <h3>O que a procedure persiste</h3>
+    <div class="grid">
+      <article class="card"><span class="tag">Registro 1</span><h3>Lote</h3><p>Produto, datas e quantidade disponível inicial.</p></article>
+      <article class="card"><span class="tag">Registro 2</span><h3>Movimento ENTRY</h3><p>Data/hora, fornecedor e descrição da entrada inicial.</p></article>
+      <article class="card"><span class="tag">Registro 3</span><h3>Item do movimento</h3><p>Lote, quantidade, custo unitário e marcador que identifica esta como a ENTRY original do lote.</p></article>
+    </div>
+    <p>Esse marcador da entrada original é importante: vendas e perdas posteriores podem recuperar o custo de aquisição do lote. As migrations 07 e 08 também protegem a relação e evitam que a origem histórica seja removida ou alterada por acidente.</p>
+    <div class="callout green"><strong>Uma forma de memorizar:</strong> o lote responde “quanto existe e até quando vale”; o movimento responde “por que o saldo mudou”; o item responde “qual lote, quantidade e custo estão envolvidos”.</div>
+  </section>
+
+  <section>
+    <h2>4. Dois usuários diferentes: banco e aplicação</h2>
+    <p>O projeto usa o nome <span class="path">marketcontrol_app</span> para a <strong>conta técnica do MariaDB</strong>. Ela não representa uma pessoa que entra na loja, não tem cargo de repositor e não deve ser reutilizada como usuário de login da API.</p>
+    <div class="grid">
+      <article class="card"><span class="tag">Banco de dados</span><h3>marketcontrol_app</h3><p>Credencial de conexão da aplicação. Deve ter privilégios mínimos, incluindo EXECUTE na procedure, e sem INSERT direto em <span class="path">lots</span>.</p></article>
+      <article class="card"><span class="tag">Pessoas</span><h3>Usuários do MarketControl</h3><p>Contas individuais de operadores e administradores. Cada pessoa autentica-se na API e recebe permissões de aplicação.</p></article>
+    </div>
+    <p>Os papéis e permissões de uma pessoa devem ser controlados pela aplicação. Eles não devem ser confundidos com os grants SQL da conta técnica do banco.</p>
+  </section>
+
+  <section>
+    <h2>5. Modelo de usuário implementado e evolução possível</h2>
+    <p class="intro">A versão atual usa uma identidade por usuário e um papel fixo. A política é simples para o escopo atual; permissões configuráveis podem ser avaliadas se as regras de acesso crescerem.</p>
+    <div class="grid">
+      <article class="card"><h3>User</h3><p>Identidade da pessoa: ID, nome, e-mail normalizado, hash BCrypt da senha e datas de criação/atualização. A senha original não é persistida.</p></article>
+      <article class="card"><h3>Role</h3><p>O enum atual define <span class="path">ADMIN</span>, <span class="path">STOCK_OPERATOR</span> e <span class="path">INACTIVE</span>. ADMIN administra cadastros e usuários; operadores leem e movimentam estoque.</p></article>
+      <article class="card"><h3>Permission</h3><p>Não há permissões configuráveis nesta versão. Uma tabela de permissões e associações seria uma evolução para políticas mais granulares, se o produto precisar.</p></article>
+    </div>
+    <h3>Relações</h3>
+    <ul>
+      <li>Cada usuário possui um papel fixo persistido na tabela <span class="path">users</span>.</li>
+      <li>As permissões atuais derivam do papel e das rotas; não há relações usuário-papel ou papel-permissão no banco.</li>
+      <li>Se papéis e regras precisarem ser editáveis, modele as relações em migrations futuras e migre as verificações centralizadas.</li>
+    </ul>
+    <p>Hoje, as migrations 09 e 11 criam usuários e sessões. A estrutura normalizada com tabelas de papéis e permissões é uma opção futura, com custo adicional de administração e migração.</p>
+    <h3>Enum ou registros configuráveis?</h3>
+    <p>Para o primeiro escopo, um enum de <strong>papéis</strong> pode ser simples, mas fica rígido quando a loja precisa mudar cargos sem nova versão da aplicação. Eu manteria permissões como identificadores estáveis e trataria papéis como dados configuráveis no banco. Um enum de permissões também é possível se o conjunto for pequeno e controlado pelo código; nesse caso, documente que novas permissões exigem alteração de código e sincronização com o banco.</p>
+    <div class="callout"><strong>Evite criar um enum para cada usuário ou cargo imaginado.</strong> Enum funciona para conceitos fechados; cargos e permissões tendem a evoluir conforme o negócio.</div>
+  </section>
+
+  <section>
+    <h2>6. Onde cada responsabilidade está hoje</h2>
+    <table>
+      <thead><tr><th>Área do projeto</th><th>Responsabilidade nova</th></tr></thead>
+      <tbody>
+        <tr><td><span class="path">domain/model</span></td><td><span class="path">User</span> e enum <span class="path">Role</span> definem os dados e os papéis fechados atuais.</td></tr>
+        <tr><td><span class="path">domain/repository</span></td><td><span class="path">UserRepository</span> e <span class="path">SessionRepository</span> isolam os contratos de persistência.</td></tr>
+        <tr><td><span class="path">service</span></td><td><span class="path">AuthService</span>, <span class="path">SessionService</span> e <span class="path">UserService</span> validam credenciais, rotacionam sessões e administram contas.</td></tr>
+        <tr><td><span class="path">http/server/handlers</span></td><td><span class="path">AuthHandler</span> publica login/refresh/logout e <span class="path">AdminUserHandler</span> expõe gestão de usuários.</td></tr>
+        <tr><td><span class="path">http/server</span></td><td><span class="path">ApiRouter</span> valida Bearer token e aplica a matriz de acesso por papel antes dos handlers protegidos.</td></tr>
+        <tr><td><span class="path">infrastructure/persistence/jdbc</span></td><td>Repositórios JDBC persistem usuários e sessões; refresh tokens são armazenados como hash.</td></tr>
+        <tr><td><span class="path">database</span></td><td>Migrations 09 e 11 definem usuários/sessões; a 10 é um seed opcional apenas para demonstração local.</td></tr>
+        <tr><td><span class="path">Program</span></td><td>Compõe repositórios, serviços, TLS opcional e o servidor HTTP.</td></tr>
+      </tbody>
+    </table>
+    <div class="callout amber"><strong>Limite atual:</strong> a checagem de papel está no router. Se novos canais de entrada ou políticas mais granulares forem adicionados, extraia uma política de autorização reutilizável e cubra também os casos de uso fora do HTTP.</div>
+  </section>
+
+  <section>
+    <h2>7. Verificações operacionais da autenticação</h2>
+    <ol class="steps">
+      <li><strong>Aplique as migrations em ordem.</strong> Execute 09 e 11 com DBA depois de 01–08. Use a migration 10 apenas em banco local de demonstração.</li>
+      <li><strong>Configure os segredos.</strong> Em produção, injete segredo JWT com pelo menos 32 bytes por secret manager e banco por variáveis de ambiente; não inclua credenciais no artefato.</li>
+      <li><strong>Crie a primeira conta ADMIN.</strong> O seed local é apenas para demonstração. Em outro ambiente, crie a conta por um processo controlado e com senha escolhida pelo operador.</li>
+      <li><strong>Valide sessões.</strong> Access tokens duram 15 minutos; refresh tokens expiram em 30 dias, são rotacionados e guardados como hash. Logout e alterações de papel revogam a sessão.</li>
+      <li><strong>Valide a matriz de papéis.</strong> Teste acesso anônimo, ADMIN e STOCK_OPERATOR em cada rota protegida, incluindo operações administrativas e mutações de cadastro.</li>
+      <li><strong>Configure HTTPS antes de expor a API.</strong> Use keystore com certificado confiável, <span class="path">MARKETCONTROL_REQUIRE_HTTPS=true</span> e CORS apontando para a origem real do frontend.</li>
+      <li><strong>Planeje futuras permissões por necessidade.</strong> Só introduza papéis configuráveis ou permissões por ação se os três papéis atuais não cobrirem as regras reais do negócio.</li>
+    </ol>
+    <h3>Próximo recorte recomendado</h3>
+    <p>Antes de ampliar o modelo de autorização, feche testes específicos de login, refresh, logout, desativação e bloqueio do último administrador. Depois evolua a cobertura das rotas e defina se a migração para Spring Boot será feita por etapas, preservando os contratos HTTP e as regras de domínio.</p>
+  </section>
+
+  <section>
+    <h2>8. Como isso conversa com suas notificações de vencimento</h2>
+    <p>Sua ideia de avisar que “o produto X vence em sete dias” pode ser construída como um caso de uso separado da autenticação. Primeiro defina quando a busca roda, quem recebe o aviso e se um mesmo lote pode gerar lembretes repetidos.</p>
+    <ul>
+      <li>Consultar lotes cuja validade esteja dentro da janela configurada e que ainda tenham saldo.</li>
+      <li>Associar a notificação a um operador, papel ou preferência de loja, conforme o modelo escolhido.</li>
+      <li>Para estimar prejuízo em dinheiro, multiplicar saldo relevante pelo custo unitário histórico da ENTRY, com uma regra explícita para saldo parcial.</li>
+      <li>Persistir ou deduplicar avisos para não enviar a mesma notificação a cada execução do processo.</li>
+      <li>Definir se o primeiro canal é uma consulta dentro da API, uma tela do sistema ou um canal externo futuro.</li>
+    </ul>
+    <p>A autenticação ajuda a determinar quem vê e administra alertas. Ela não deve ser misturada à regra que identifica lotes próximos do vencimento.</p>
+  </section>
+
+  <section>
+    <h2>Resumo para guardar</h2>
+    <ul>
+      <li><strong>Java prepara a chamada;</strong> a procedure guarda a sequência de gravações do lote e da ENTRY original.</li>
+      <li><strong>Os sete parâmetros carregam os dados do recebimento;</strong> a procedure cria o ID do movimento e grava os três registros relacionados.</li>
+      <li><strong>A transação garante o conjunto:</strong> ou lote e origem ficam persistidos, ou a operação falha sem deixar uma criação pela metade.</li>
+      <li><strong><span class="path">marketcontrol_app</span> é a conta do banco;</strong> os usuários e cargos que você vai criar são identidades da aplicação.</li>
+      <li><strong>Autenticação identifica;</strong> autorização decide quais ações aquela identidade pode executar.</li>
+      <li><strong>O modelo atual já autentica e autoriza por três papéis;</strong> permissões configuráveis são uma evolução futura, não uma etapa ainda não iniciada.</li>
+    </ul>
+  </section>
+</main>
+<footer>Material de estudo preparado a partir da arquitetura e das migrations atuais do MarketControl.</footer>
+</body>
+</html>

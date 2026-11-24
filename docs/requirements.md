@@ -1,6 +1,6 @@
 # MarketControl — requisitos e estado funcional
 
-> Estado atualizado em 19/11/2026. Esta página descreve o código atual; itens marcados como ausentes continuam sendo trabalho futuro.
+> Estado atualizado em 24/11/2026. Esta página descreve o código atual; itens marcados como ausentes continuam sendo trabalho futuro.
 
 ## Objetivo e arquitetura
 
@@ -31,7 +31,7 @@ As regras de negócio continuam nos serviços e domínio. Handlers traduzem HTTP
 | Registrar venda e perda | API `POST /api/lots/{id}/sales` e `/losses`; continua transacional e baseada em custo histórico. |
 | Consultar histórico de movimentos | Não implementado; os movimentos são gravados, mas não há consulta de leitura. |
 | Paginação | Não implementada. Listagens retornam todos os resultados. |
-| Autenticação/autorização | Não implementadas nesta etapa. As entidades serão modeladas manualmente pelo autor em uma etapa futura. Servidor limitado por padrão a `127.0.0.1`. |
+| Autenticação/autorização | Login com access JWT e refresh token rotativo persistido por hash; papéis `ADMIN`, `STOCK_OPERATOR` e `INACTIVE`; administração de usuários restrita a ADMIN. O servidor usa loopback por padrão. |
 | Health | `GET /api/health` confirma liveness do processo HTTP; não verifica MariaDB. |
 | Ajuste, FEFO e venda multi-lote | Não implementados. |
 
@@ -48,7 +48,7 @@ Contratos HTTP detalhados e exemplos estão em [http-api.md](http-api.md).
 - O servidor aceita conexões simultâneas em virtual threads; executor e servidor são encerrados juntos no shutdown.
 - Inicialização usa host/porta configuráveis por `marketcontrol.http.host` e `marketcontrol.http.port`; o padrão é `127.0.0.1:8080`. A origem CORS usa `marketcontrol.http.cors.allowed-origin`.
 
-Essas medidas protegem o limite HTTP local, mas não substituem autenticação, autorização, TLS, rate limiting ou revisão de exposição em rede. Não exponha a API publicamente no estado atual.
+Essas medidas protegem o limite HTTP local, mas não substituem rate limiting ou revisão de exposição em rede. A autenticação usa sessões persistidas e exige a migration 11; TLS pode ser habilitado pelo keystore externo. Não exponha a API sem configurar os segredos e certificados reais do ambiente.
 
 ## Regras de domínio e banco
 
@@ -60,7 +60,7 @@ Essas medidas protegem o limite HTTP local, mas não substituem autenticação, 
 - Lote + ENTRY + item são persistidos atomicamente via `create_lot_with_initial_entry`. A conta `marketcontrol_app` não tem INSERT direto em `lots`.
 - A migration 07 protege a origem de custo ENTRY; a migration 08 cria a procedure e estabelece grants mínimos. A aplicação deve conectar com `marketcontrol_app`, nunca como root.
 
-Bootstrap vazio: execute `database/01_categories.sql` a `06_stock_movement_items.sql` em ordem e aplique migrations `07_lot_initial_entry_integrity.sql` e `08_atomic_lot_creation_and_app_grants.sql` com DBA, conforme as pré-condições do banco.
+Bootstrap vazio: execute `database/01_categories.sql` a `06_stock_movement_items.sql` em ordem; aplique migrations 07 e 08, depois `09_users.sql` e `11_user_sessions.sql` com DBA. `10_auth_demo_accounts.sql` é opcional e só deve ser usado em banco local de demonstração.
 
 ## Build, execução e testes
 
@@ -72,16 +72,16 @@ Bootstrap vazio: execute `database/01_categories.sql` a `06_stock_movement_items
 
 ## Limitações e próximos passos
 
-- Não há autenticação/autorização, paginação, consulta de histórico de movimentos, idempotency keys, rate limiting, TLS, OpenAPI, métricas ou deploy automatizado.
+- Ainda faltam paginação, consulta de histórico de movimentos, idempotency keys, rate limiting, OpenAPI, métricas e deploy automatizado.
 - `GET /api/health` verifica liveness HTTP, não prontidão do MariaDB.
 - O resumo de produtos retorna quantidade por unidade, mas não existe uma regra de estoque mínimo.
 - As respostas de lote não incluem fornecedor ou custos, e não há consulta de ENTRY/custo histórico.
 - Não há venda distribuída entre lotes nem política FEFO.
 
-Próximas etapas incluem notificações, modelagem manual das entidades de autenticação/autorização e refinamento incremental dos contratos e serviços. Antes de qualquer exposição além do ambiente local, serão necessários TLS, gestão segura de configuração e controles operacionais.
+Antes de exposição pública, configure TLS com certificado confiável, `MARKETCONTROL_REQUIRE_HTTPS=true`, segredo JWT por secret manager e origem CORS do frontend.
 
 ## Desenvolvimento assistido por IA
 
-Os endpoints são construídos iterativamente com auxílio de IA e revisados em relação às regras de domínio e aos testes. As decisões de escopo e a revisão final permanecem sob responsabilidade do autor. As entidades de autenticação/autorização serão modeladas manualmente em uma etapa futura.
+Os endpoints são construídos iterativamente com auxílio de IA e revisados em relação às regras de domínio e aos testes. As decisões de escopo e a revisão final permanecem sob responsabilidade do autor. A autenticação e autorização atuais usam sessões persistidas, papéis fixos e operações administrativas protegidas.
 
 Os contratos JDBC transacionais ainda recebem `java.sql.Connection`, e a conexão usa `DriverManager` sem pool. Não há métricas, tracing, backup ou deploy automatizado. A API atual é uma base de desenvolvimento educacional, não um serviço pronto para uso público.

@@ -13,7 +13,7 @@ import marketcontrol.http.server.responses.HttpResponseWriter;
 /** Development CORS policy for the separate Angular workspace. This is not authentication. */
 public final class CorsHandler implements HttpHandler {
     private static final Set<String> ALLOWED_METHODS = Set.of("GET", "POST", "PUT");
-    private static final Set<String> ALLOWED_HEADERS = Set.of("content-type");
+    private static final Set<String> ALLOWED_HEADERS = Set.of("content-type", "authorization");
 
     private final HttpHandler delegate;
     private final String allowedOrigin;
@@ -63,7 +63,7 @@ public final class CorsHandler implements HttpHandler {
             }
         }
         exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
-        exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
+        exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type, Authorization");
         exchange.getResponseHeaders().set("Access-Control-Max-Age", "600");
         HttpResponseWriter.sendEmpty(exchange, 204);
     }

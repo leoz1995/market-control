@@ -136,6 +136,15 @@ public class Product implements ReadOnlyProduct{
 	
 	@Override
 	public String toString() {
-		return "Product: [ID: "+id+" | " + name + ", barCode=" + barCode + ", description=" + description + " | "+getCategory()+" | "+unit+" ]";
+		return """
+				Product[
+				    id=%s,
+				    name=%s,
+				    barCode=%s,
+				    description=%s,
+				    category=%s,
+				    unit=%s
+				]
+				""".formatted(id, name, barCode, description, category, unit);
 	}
 }

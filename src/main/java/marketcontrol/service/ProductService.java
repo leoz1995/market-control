@@ -10,15 +10,15 @@ import marketcontrol.domain.model.interfaces.ReadOnlyCategory;
 import marketcontrol.domain.model.interfaces.ReadOnlyProduct;
 import marketcontrol.domain.repository.ProductRepository;
 import marketcontrol.domain.repository.ProductRepository.ProductInventorySummary;
+import marketcontrol.dtos.ProductDTO;
 import marketcontrol.exception.ConflictException;
 import marketcontrol.exception.ResourceNotFoundException;
-import marketcontrol.dtos.ProductDTO;
 
 public class ProductService {
-	
+
 	private final ProductRepository productRepository;
 	private final CategoryService categoryService;
-	
+
 	public ProductService(ProductRepository productRepository, CategoryService categoryService) {
 		
 	    if (productRepository == null)

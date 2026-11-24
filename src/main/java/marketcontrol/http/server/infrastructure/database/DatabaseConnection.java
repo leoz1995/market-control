@@ -16,7 +16,7 @@ public class DatabaseConnection {
 		
 		try(InputStream input = DatabaseConnection.class.getClassLoader().getResourceAsStream("database.properties")){
 			if(input == null)
-				throw new IllegalArgumentException("Arquivo database.properties não encontrado.");
+				return properties;
 			
 			properties.load(input);
 			return properties;
@@ -26,7 +26,17 @@ public class DatabaseConnection {
 	}
 	
 	public static Connection getConnection() throws SQLException{
-		return DriverManager.getConnection(CONFIG.getProperty("db.url"), CONFIG.getProperty("db.user"), CONFIG.getProperty("db.password"));
+		String url = setting("MARKETCONTROL_DB_URL", "db.url");
+		String user = setting("MARKETCONTROL_DB_USER", "db.user");
+		String password = setting("MARKETCONTROL_DB_PASSWORD", "db.password");
+		if (url == null || user == null || password == null)
+			throw new SQLException("Configure MARKETCONTROL_DB_URL, MARKETCONTROL_DB_USER e MARKETCONTROL_DB_PASSWORD ou database.properties.");
+		return DriverManager.getConnection(url, user, password);
+	}
+
+	private static String setting(String envName, String propertyName) {
+		String value = System.getenv(envName);
+		return value == null || value.isBlank() ? CONFIG.getProperty(propertyName) : value;
 	}
 
 	/** Administrator connection used only by integration-test fixture cleanup. */
